@@ -13,7 +13,7 @@ import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/services/log.dart';
 import 'package:pathplanner/services/pplib_telemetry.dart';
 import 'package:pathplanner/trajectory/config.dart';
-import 'package:pathplanner/trajectory/trajectory.dart';
+import 'package:pathplanner/services/physics_sim_service.dart';
 import 'package:pathplanner/util/prefs.dart';
 import 'package:pathplanner/util/wpimath/geometry.dart';
 import 'package:pathplanner/widgets/dialogs/trajectory_render_dialog.dart';
@@ -74,7 +74,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
   int? _draggedRotationIdx;
   Translation2d? _draggedRotationPos;
   Rotation2d? _dragRotationOldValue;
-  PathPlannerTrajectory? _simTraj;
+  PhysicsSimulationResult? _simResult;
   bool _paused = false;
   late bool _holonomicMode;
 
@@ -150,21 +150,16 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                 }
                 for (int i = waypoints.length - 1; i >= 0; i--) {
                   Waypoint w = waypoints[i];
-                  if (w.isPointInAnchor(
-                          _xPixelsToMeters(details.localPosition.dx),
-                          _yPixelsToMeters(details.localPosition.dy),
-                          _pixelsToMeters(PathPainterUtil.uiPointSizeToPixels(
-                              25, PathPainter.scale, widget.fieldImage))) ||
-                      w.isPointInNextControl(
-                          _xPixelsToMeters(details.localPosition.dx),
-                          _yPixelsToMeters(details.localPosition.dy),
-                          _pixelsToMeters(PathPainterUtil.uiPointSizeToPixels(
-                              20, PathPainter.scale, widget.fieldImage))) ||
-                      w.isPointInPrevControl(
-                          _xPixelsToMeters(details.localPosition.dx),
-                          _yPixelsToMeters(details.localPosition.dy),
-                          _pixelsToMeters(PathPainterUtil.uiPointSizeToPixels(
-                              20, PathPainter.scale, widget.fieldImage)))) {
+          if (w.isPointInAnchor(
+              _xPixelsToMeters(details.localPosition.dx),
+              _yPixelsToMeters(details.localPosition.dy),
+              _pixelsToMeters(PathPainterUtil.uiPointSizeToPixels(
+                25, PathPainter.scale, widget.fieldImage))) ||
+            w.isPointInHeadingHandle(
+              _xPixelsToMeters(details.localPosition.dx),
+              _yPixelsToMeters(details.localPosition.dy),
+              _pixelsToMeters(PathPainterUtil.uiPointSizeToPixels(
+                20, PathPainter.scale, widget.fieldImage)))) {
                     _setSelectedWaypoint(i);
                     return;
                   }
@@ -467,7 +462,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                           selectedRotTarget: _selectedRotTarget,
                           hoveredMarker: _hoveredMarker,
                           selectedMarker: _selectedMarker,
-                          simulatedPath: _simTraj,
+                          simulatedPath: _simResult,
                           animation: _previewController.view,
                           prefs: widget.prefs,
                           optimizedPath: _optimizedPath,
@@ -502,7 +497,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                 PreviewSeekbar(
                   previewController: _previewController,
                   onPauseStateChanged: (value) => _paused = value,
-                  totalPathTime: _simTraj?.states.last.timeSeconds ?? 1.0,
+                  totalPathTime: _simResult?.totalTimeSeconds ?? 1.0,
                 ),
               Card(
                 margin: const EdgeInsets.all(0),
@@ -525,7 +520,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                   padding: const EdgeInsets.all(8.0),
                   child: PathTree(
                     path: widget.path,
-                    pathRuntime: _simTraj?.getTotalTimeSeconds(),
+                    pathRuntime: _simResult?.totalTimeSeconds,
                     runtimeDisplay: _runtimeDisplay,
                     initiallySelectedWaypoint: _selectedWaypoint,
                     initiallySelectedZone: _selectedZone,
@@ -539,14 +534,14 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                     prefs: widget.prefs,
                     fieldSizeMeters: widget.fieldImage.getFieldSizeMeters(),
                     onRenderPath: () {
-                      if (_simTraj != null) {
+                      if (_simResult != null) {
                         showDialog(
                             context: context,
                             builder: (context) {
                               return TrajectoryRenderDialog(
                                 fieldImage: widget.fieldImage,
                                 prefs: widget.prefs,
-                                trajectory: _simTraj!,
+                                physicsResult: _simResult!,
                               );
                             });
                       }
@@ -593,15 +588,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                             _hoveredWaypoint = null;
                             _waypointsTreeController.setSelectedWaypoint(null);
 
-                            Waypoint w =
-                                widget.path.waypoints.removeAt(waypointIdx);
-
-                            if (w.isEndPoint) {
-                              waypoints[widget.path.waypoints.length - 1]
-                                  .nextControl = null;
-                            } else if (w.isStartPoint) {
-                              waypoints[0].prevControl = null;
-                            }
+                            widget.path.waypoints.removeAt(waypointIdx);
 
                             for (ConstraintsZone zone
                                 in widget.path.constraintZones) {
@@ -732,7 +719,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                 PreviewSeekbar(
                   previewController: _previewController,
                   onPauseStateChanged: (value) => _paused = value,
-                  totalPathTime: _simTraj?.states.last.timeSeconds ?? 1.0,
+                  totalPathTime: _simResult?.totalTimeSeconds ?? 1.0,
                 ),
             ],
           ),
@@ -745,17 +732,14 @@ class _SplitPathEditorState extends State<SplitPathEditor>
   void _simulatePath() async {
     if (widget.simulate) {
       setState(() {
-        _simTraj = PathPlannerTrajectory(
-          path: widget.path,
-          robotConfig: RobotConfig.fromPrefs(widget.prefs),
-        );
-        if (!(_simTraj?.getTotalTimeSeconds().isFinite ?? false)) {
-          _simTraj = null;
+        _simResult = PhysicsSimService.simulatePath(widget.path);
+        if (!(_simResult?.totalTimeSeconds.isFinite ?? false) ||
+            (_simResult?.states.isEmpty ?? true)) {
+          _simResult = null;
         }
 
-        // Update the RuntimeDisplay widget
         _runtimeDisplay = RuntimeDisplay(
-          currentRuntime: _simTraj?.states.last.timeSeconds,
+          currentRuntime: _simResult?.totalTimeSeconds,
           previousRuntime: _runtimeDisplay?.currentRuntime,
         );
       });
@@ -765,22 +749,20 @@ class _SplitPathEditorState extends State<SplitPathEditor>
         _previewController.reset();
       }
 
-      if (_simTraj != null) {
+      if (_simResult != null) {
         try {
           if (!_paused) {
             _previewController.stop();
             _previewController.reset();
             _previewController.duration = Duration(
-                milliseconds:
-                    (_simTraj!.states.last.timeSeconds * 1000).toInt());
+                milliseconds: (_simResult!.totalTimeSeconds * 1000).toInt());
             _previewController.repeat();
           } else if (_previewController.duration != null) {
             double prevTime = _previewController.value *
                 (_previewController.duration!.inMilliseconds / 1000.0);
             _previewController.duration = Duration(
-                milliseconds:
-                    (_simTraj!.states.last.timeSeconds * 1000).toInt());
-            double newPos = prevTime / _simTraj!.states.last.timeSeconds;
+                milliseconds: (_simResult!.totalTimeSeconds * 1000).toInt());
+            double newPos = prevTime / _simResult!.totalTimeSeconds;
             _previewController.forward(from: newPos);
             _previewController.stop();
           }
@@ -799,7 +781,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Failed to generate trajectory. This is likely due to bad control point placement. Please adjust your control points to avoid kinks in the path.',
+          'Failed to simulate trajectory. Check your waypoint tolerances and motion limits for invalid values.',
           style:
               TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
         ),

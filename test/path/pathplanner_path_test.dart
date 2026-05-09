@@ -42,11 +42,9 @@ void main() {
         waypoints: [
           Waypoint(
             anchor: const Translation2d(1.0, 1.0),
-            nextControl: const Translation2d(2.0, 2.0),
           ),
           Waypoint(
             anchor: const Translation2d(4.0, 1.0),
-            prevControl: const Translation2d(3.0, 2.0),
           ),
         ],
         globalConstraints: PathConstraints(maxVelocityMPS: 1.1),
@@ -83,11 +81,9 @@ void main() {
         waypoints: [
           Waypoint(
             anchor: const Translation2d(1.0, 1.0),
-            nextControl: const Translation2d(2.0, 2.0),
           ),
           Waypoint(
             anchor: const Translation2d(4.0, 1.0),
-            prevControl: const Translation2d(3.0, 2.0),
           ),
         ],
         globalConstraints: PathConstraints(maxVelocityMPS: 1.1),
@@ -119,11 +115,9 @@ void main() {
         waypoints: [
           Waypoint(
             anchor: const Translation2d(1.0, 1.0),
-            nextControl: const Translation2d(2.0, 2.0),
           ),
           Waypoint(
             anchor: const Translation2d(4.0, 1.0),
-            prevControl: const Translation2d(3.0, 2.0),
           ),
         ],
         globalConstraints: PathConstraints(maxVelocityMPS: 1.1),
@@ -156,11 +150,9 @@ void main() {
         waypoints: [
           Waypoint(
             anchor: const Translation2d(1.0, 1.0),
-            nextControl: const Translation2d(2.0, 2.0),
           ),
           Waypoint(
             anchor: const Translation2d(4.0, 1.0),
-            prevControl: const Translation2d(3.0, 2.0),
           ),
         ],
         globalConstraints: PathConstraints(maxVelocityMPS: 1.1),
@@ -181,11 +173,9 @@ void main() {
         waypoints: [
           Waypoint(
             anchor: const Translation2d(1.0, 1.0),
-            nextControl: const Translation2d(2.0, 2.0),
           ),
           Waypoint(
             anchor: const Translation2d(4.0, 1.0),
-            prevControl: const Translation2d(3.0, 2.0),
           ),
         ],
         globalConstraints: PathConstraints(maxVelocityMPS: 1.1),
@@ -206,11 +196,9 @@ void main() {
         waypoints: [
           Waypoint(
             anchor: const Translation2d(1.0, 1.5),
-            nextControl: const Translation2d(2.0, 2.0),
           ),
           Waypoint(
             anchor: const Translation2d(4.0, 1.0),
-            prevControl: const Translation2d(3.0, 2.1),
           ),
         ],
         globalConstraints: PathConstraints(maxVelocityMPS: 1.0),
@@ -243,11 +231,9 @@ void main() {
       waypoints: [
         Waypoint(
           anchor: const Translation2d(1.0, 1.0),
-          nextControl: const Translation2d(2.0, 2.0),
         ),
         Waypoint(
           anchor: const Translation2d(4.0, 1.0),
-          prevControl: const Translation2d(3.0, 2.0),
         ),
       ],
       globalConstraints: PathConstraints(maxVelocityMPS: 1.1),
@@ -266,10 +252,6 @@ void main() {
 
     expect(path.waypoints.length, 3);
     expect(path.waypoints.last.anchor, const Translation2d(6.0, 1.0));
-    expect(path.waypoints.last.prevControl, isNotNull);
-    expect(path.waypoints.last.prevControl!.x, closeTo(5.5, epsilon));
-    expect(path.waypoints.last.prevControl!.y, closeTo(0.5, epsilon));
-    expect(path.waypoints[1].nextControl, isNotNull);
   });
 
   test('insert waypoint', () {
@@ -282,11 +264,9 @@ void main() {
       waypoints: [
         Waypoint(
           anchor: const Translation2d(1.0, 1.0),
-          nextControl: const Translation2d(2.0, 2.0),
         ),
         Waypoint(
           anchor: const Translation2d(4.0, 1.0),
-          prevControl: const Translation2d(3.0, 2.0),
         ),
       ],
       globalConstraints: PathConstraints(maxVelocityMPS: 1.1),
@@ -323,9 +303,7 @@ void main() {
 
     path.insertWaypointAfter(0);
     expect(path.waypoints.length, 3);
-    expect(path.waypoints[1].anchor, const Translation2d(2.5, 1.75));
-    expect(path.waypoints[1].prevControl, const Translation2d(2.25, 1.875));
-    expect(path.waypoints[1].nextControl, const Translation2d(2.75, 1.625));
+  expect(path.waypoints[1].anchor, const Translation2d(2.5, 1.0));
     expect(path.constraintZones[0].minWaypointRelativePos, 0.4);
     expect(path.constraintZones[0].maxWaypointRelativePos, 0.8);
     expect(path.pointTowardsZones[0].minWaypointRelativePos, 0.5);

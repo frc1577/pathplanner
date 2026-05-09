@@ -111,7 +111,6 @@ class _SplitAutoEditorState extends State<SplitAutoEditor>
                                 Defaults.hidePathsOnHover,
                             hoveredPath: _hoveredPath,
                             fieldImage: widget.fieldImage,
-                            simulatedPath: _simTraj,
                             animation: _previewController.view,
                             prefs: widget.prefs)),
                   ),

@@ -89,7 +89,6 @@ class _SplitChoreoPathEditorState extends State<SplitChoreoPathEditor>
                         paths: [],
                         choreoPaths: [widget.path],
                         fieldImage: widget.fieldImage,
-                        simulatedPath: widget.path.trajectory,
                         animation: _previewController.view,
                         prefs: widget.prefs,
                       ),

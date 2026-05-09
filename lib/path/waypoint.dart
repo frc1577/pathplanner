@@ -4,167 +4,126 @@ import 'dart:math';
 import 'package:pathplanner/util/wpimath/geometry.dart';
 
 class Waypoint {
-  static const num minControlLength = 0.25;
+  static const num headingHandleLength = 0.5;
   static HashMap<String, Pose2d> linked = HashMap();
 
   Translation2d anchor;
-  Translation2d? prevControl;
-  Translation2d? nextControl;
+  Rotation2d holonomicAngle;
+  num cruiseVelocity;
+  num maxAcceleration;
+  num targetEndVelocity;
+  num tolerance;
   bool isLocked;
   String? linkedName;
 
   bool _isAnchorDragging = false;
-  bool _isPrevControlDragging = false;
-  bool _isNextControlDragging = false;
+  bool _isHeadingDragging = false;
 
   Waypoint({
     required this.anchor,
-    this.prevControl,
-    this.nextControl,
+    Rotation2d? holonomicAngle,
+    this.cruiseVelocity = 0.0,
+    this.maxAcceleration = 0.0,
+    this.targetEndVelocity = 0.0,
+    this.tolerance = 0.1,
     this.isLocked = false,
     this.linkedName,
-  }) {
-    // Set the lengths to their current length to enforce minimum
-    if (prevControl != null) {
-      setPrevControlLength(prevControlLength!);
-    }
-    if (nextControl != null) {
-      setNextControlLength(nextControlLength!);
-    }
-  }
+  }) : holonomicAngle = holonomicAngle ?? const Rotation2d();
 
   bool get isAnchorDragging => _isAnchorDragging;
+
+  bool get isHeadingDragging => _isHeadingDragging;
 
   Waypoint.fromJson(Map<String, dynamic> json)
       : this(
           anchor: Translation2d.fromJson(json['anchor']),
-          prevControl: json['prevControl'] != null
-              ? Translation2d.fromJson(json['prevControl'])
-              : null,
-          nextControl: json['nextControl'] != null
-              ? Translation2d.fromJson(json['nextControl'])
-              : null,
+          holonomicAngle: _holonomicAngleFromJson(json),
+          cruiseVelocity: json['cruiseVelocity'] ?? 0.0,
+          maxAcceleration: json['maxAcceleration'] ?? 0.0,
+          targetEndVelocity: json['targetEndVelocity'] ?? 0.0,
+          tolerance: json['tolerance'] ?? 0.1,
           isLocked: json['isLocked'] ?? false,
           linkedName: json['linkedName'],
         );
 
+  static Rotation2d _holonomicAngleFromJson(Map<String, dynamic> json) {
+    if (json['holonomicAngle'] != null) {
+      return Rotation2d.fromDegrees(json['holonomicAngle'].toDouble());
+    }
+
+    if (json['nextControl'] != null) {
+      final anchor = Translation2d.fromJson(json['anchor']);
+      final nextControl = Translation2d.fromJson(json['nextControl']);
+      return (nextControl - anchor).angle;
+    }
+
+    if (json['prevControl'] != null) {
+      final anchor = Translation2d.fromJson(json['anchor']);
+      final prevControl = Translation2d.fromJson(json['prevControl']);
+      return (anchor - prevControl).angle;
+    }
+
+    return const Rotation2d();
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'anchor': anchor.toJson(),
-      'prevControl': prevControl?.toJson(),
-      'nextControl': nextControl?.toJson(),
+      'holonomicAngle': holonomicAngle.degrees,
+      'cruiseVelocity': cruiseVelocity,
+      'maxAcceleration': maxAcceleration,
+      'targetEndVelocity': targetEndVelocity,
+      'tolerance': tolerance,
       'isLocked': isLocked,
       'linkedName': linkedName,
     };
   }
 
-  Rotation2d get heading => (nextControl != null)
-      ? (nextControl! - anchor).angle
-      : (anchor - prevControl!).angle;
-
-  bool get isStartPoint => prevControl == null;
-
-  bool get isEndPoint => nextControl == null;
-
-  num? get prevControlLength => prevControl?.getDistance(anchor);
-
-  num? get nextControlLength => nextControl?.getDistance(anchor);
+  Rotation2d get heading => holonomicAngle;
 
   void move(num x, num y) {
-    num dx = x - anchor.x;
-    num dy = y - anchor.y;
     anchor = Translation2d(x, y);
-    if (nextControl != null) {
-      nextControl = Translation2d(nextControl!.x + dx, nextControl!.y + dy);
-    }
-    if (prevControl != null) {
-      prevControl = Translation2d(prevControl!.x + dx, prevControl!.y + dy);
-    }
 
     if (linkedName != null) {
-      linked[linkedName!] =
-          Pose2d(anchor, linked[linkedName!]?.rotation ?? const Rotation2d());
+      linked[linkedName!] = Pose2d(anchor, holonomicAngle);
     }
   }
 
   Waypoint clone() {
     return Waypoint(
       anchor: anchor,
-      prevControl: prevControl,
-      nextControl: nextControl,
+      holonomicAngle: holonomicAngle,
+      cruiseVelocity: cruiseVelocity,
+      maxAcceleration: maxAcceleration,
+      targetEndVelocity: targetEndVelocity,
+      tolerance: tolerance,
       isLocked: isLocked,
       linkedName: linkedName,
     );
   }
 
   void setHeading(Rotation2d heading) {
-    if (prevControl != null) {
-      prevControl =
-          anchor - Translation2d.fromAngle(prevControlLength!, heading);
-    }
-    if (nextControl != null) {
-      nextControl =
-          anchor + Translation2d.fromAngle(nextControlLength!, heading);
-    }
+    holonomicAngle = heading;
   }
 
-  void addNextControl() {
-    if (prevControl != null) {
-      nextControl = anchor +
-          Translation2d.fromAngle(
-              prevControlLength!, (anchor - prevControl!).angle);
-    }
-  }
-
-  void setPrevControlLength(num length) {
-    if (prevControl != null) {
-      if (!length.isFinite) {
-        length = minControlLength;
-      }
-      length = max(length, minControlLength);
-      prevControl = anchor +
-          Translation2d.fromAngle(length, (prevControl! - anchor).angle);
-    }
-  }
-
-  void setNextControlLength(num length) {
-    if (nextControl != null) {
-      if (!length.isFinite) {
-        length = minControlLength;
-      }
-      length = max(length, minControlLength);
-      nextControl = anchor +
-          Translation2d.fromAngle(length, (nextControl! - anchor).angle);
-    }
+  Translation2d headingHandlePosition() {
+    return anchor + Translation2d.fromAngle(headingHandleLength, holonomicAngle);
   }
 
   bool isPointInAnchor(num xPos, num yPos, num radius) {
     return pow(xPos - anchor.x, 2) + pow(yPos - anchor.y, 2) < pow(radius, 2);
   }
 
-  bool isPointInNextControl(num xPos, num yPos, num radius) {
-    if (nextControl != null) {
-      return pow(xPos - nextControl!.x, 2) + pow(yPos - nextControl!.y, 2) <
-          pow(radius, 2);
-    }
-    return false;
+  bool isPointInHeadingHandle(num xPos, num yPos, num radius) {
+    Translation2d handle = headingHandlePosition();
+    return pow(xPos - handle.x, 2) + pow(yPos - handle.y, 2) < pow(radius, 2);
   }
 
-  bool isPointInPrevControl(num xPos, num yPos, num radius) {
-    if (prevControl != null) {
-      return pow(xPos - prevControl!.x, 2) + pow(yPos - prevControl!.y, 2) <
-          pow(radius, 2);
-    }
-    return false;
-  }
-
-  bool startDragging(num xPos, num yPos, num anchorRadius, num controlRadius) {
+  bool startDragging(num xPos, num yPos, num anchorRadius, num headingRadius) {
     if (isPointInAnchor(xPos, yPos, anchorRadius)) {
       return _isAnchorDragging = true;
-    } else if (isPointInNextControl(xPos, yPos, controlRadius)) {
-      return _isNextControlDragging = true;
-    } else if (isPointInPrevControl(xPos, yPos, controlRadius)) {
-      return _isPrevControlDragging = true;
+    } else if (isPointInHeadingHandle(xPos, yPos, headingRadius)) {
+      return _isHeadingDragging = true;
     }
     return false;
   }
@@ -172,74 +131,17 @@ class Waypoint {
   void dragUpdate(num x, num y) {
     if (_isAnchorDragging && !isLocked) {
       move(x, y);
-    } else if (_isNextControlDragging) {
-      if (isLocked) {
-        Translation2d lineEnd = nextControl! + (nextControl! - anchor);
-        Translation2d newPoint =
-            _closestPointOnLine(anchor, lineEnd, Translation2d(x, y));
-        if (newPoint.x - anchor.x != 0 || newPoint.y - anchor.y != 0) {
-          nextControl = newPoint;
-        }
-      } else {
-        nextControl = Translation2d(x, y);
+    } else if (_isHeadingDragging) {
+      Rotation2d newHeading = Rotation2d.fromComponents(x - anchor.x, y - anchor.y);
+      if (newHeading.radians.isFinite) {
+        holonomicAngle = newHeading;
       }
-
-      if (prevControl != null) {
-        prevControl = anchor +
-            Translation2d.fromAngle(
-                prevControlLength!, (anchor - nextControl!).angle);
-      }
-      // Set the length to enforce minimum
-      setNextControlLength(nextControlLength!);
-    } else if (_isPrevControlDragging) {
-      if (isLocked) {
-        Translation2d lineEnd = prevControl! + (prevControl! - anchor);
-        Translation2d newPoint =
-            _closestPointOnLine(anchor, lineEnd, Translation2d(x, y));
-        if (newPoint.x - anchor.x != 0 || newPoint.y - anchor.y != 0) {
-          prevControl = newPoint;
-        }
-      } else {
-        prevControl = Translation2d(x, y);
-      }
-
-      if (nextControl != null) {
-        nextControl = anchor +
-            Translation2d.fromAngle(
-                nextControlLength!, (anchor - prevControl!).angle);
-      }
-      // Set the length to enforce minimum
-      setPrevControlLength(prevControlLength!);
     }
   }
 
   void stopDragging() {
-    _isPrevControlDragging = false;
-    _isNextControlDragging = false;
+    _isHeadingDragging = false;
     _isAnchorDragging = false;
-  }
-
-  Translation2d _closestPointOnLine(
-      Translation2d lineStart, Translation2d lineEnd, Translation2d p) {
-    var dx = lineEnd.x - lineStart.x;
-    var dy = lineEnd.y - lineStart.y;
-
-    if (dx == 0 || dy == 0) {
-      return lineStart;
-    }
-
-    num t = ((p.x - lineStart.x) * dx + (p.y - lineStart.y) * dy) /
-        (dx * dx + dy * dy);
-
-    Translation2d closestPoint;
-    if (t < 0) {
-      closestPoint = lineStart;
-    } else if (t > 1) {
-      closestPoint = lineEnd;
-    } else {
-      closestPoint = lineStart.interpolate(lineEnd, t);
-    }
-    return closestPoint;
   }
 
   @override
@@ -247,10 +149,14 @@ class Waypoint {
       other is Waypoint &&
       other.runtimeType == runtimeType &&
       other.anchor == anchor &&
-      other.prevControl == prevControl &&
-      other.nextControl == nextControl &&
+      other.holonomicAngle == holonomicAngle &&
+      other.cruiseVelocity == cruiseVelocity &&
+      other.maxAcceleration == maxAcceleration &&
+      other.targetEndVelocity == targetEndVelocity &&
+      other.tolerance == tolerance &&
       other.linkedName == linkedName;
 
   @override
-  int get hashCode => Object.hash(anchor, prevControl, nextControl, linkedName);
+  int get hashCode => Object.hash(anchor, holonomicAngle, cruiseVelocity,
+      maxAcceleration, targetEndVelocity, tolerance, linkedName);
 }

@@ -5,6 +5,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:isolate_manager/isolate_manager.dart';
 import 'package:pathplanner/trajectory/trajectory.dart';
+import 'package:pathplanner/services/physics_sim_service.dart';
 import 'package:pathplanner/util/prefs.dart';
 import 'package:pathplanner/widgets/conditional_widget.dart';
 import 'package:pathplanner/widgets/field_image.dart';
@@ -18,14 +19,16 @@ typedef GifProgress = ({double progress, Uint8List? bytes});
 class TrajectoryRenderDialog extends StatefulWidget {
   final FieldImage fieldImage;
   final SharedPreferences prefs;
-  final PathPlannerTrajectory trajectory;
+  final PathPlannerTrajectory? trajectory;
+  final PhysicsSimulationResult? physicsResult;
 
   const TrajectoryRenderDialog({
     super.key,
     required this.fieldImage,
     required this.prefs,
-    required this.trajectory,
-  });
+    this.trajectory,
+    this.physicsResult,
+  }) : assert(trajectory != null || physicsResult != null);
 
   @override
   State<TrajectoryRenderDialog> createState() => _TrajectoryRenderDialogState();
@@ -85,6 +88,7 @@ class _TrajectoryRenderDialogState extends State<TrajectoryRenderDialog> {
                       fieldImage: widget.fieldImage,
                       prefs: widget.prefs,
                       trajectory: widget.trajectory,
+                      physicsResult: widget.physicsResult,
                       sampleTime: _renderGif ? _sampleTime : null,
                     ),
                   ),
@@ -282,9 +286,9 @@ class _TrajectoryRenderDialogState extends State<TrajectoryRenderDialog> {
       }
     } else {
       double nextTime = _sampleTime + 0.04;
-      if (nextTime >= widget.trajectory.getTotalTimeSeconds()) {
+      if (nextTime >= _totalTimeSeconds()) {
         setState(() {
-          _sampleTime = widget.trajectory.getTotalTimeSeconds().toDouble();
+          _sampleTime = _totalTimeSeconds().toDouble();
         });
         WidgetsBinding.instance
             .addPostFrameCallback((_) => _renderGifFrame(true));
@@ -295,6 +299,13 @@ class _TrajectoryRenderDialogState extends State<TrajectoryRenderDialog> {
         WidgetsBinding.instance.addPostFrameCallback((_) => _renderGifFrame());
       }
     }
+  }
+
+  num _totalTimeSeconds() {
+    if (widget.trajectory != null) {
+      return widget.trajectory!.getTotalTimeSeconds();
+    }
+    return widget.physicsResult?.totalTimeSeconds ?? 0.0;
   }
 
   @isolateManagerCustomWorker

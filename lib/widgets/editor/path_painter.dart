@@ -9,6 +9,7 @@ import 'package:pathplanner/path/rotation_target.dart';
 import 'package:pathplanner/robot_features/feature.dart';
 import 'package:pathplanner/trajectory/config.dart';
 import 'package:pathplanner/trajectory/trajectory.dart';
+import 'package:pathplanner/services/physics_sim_service.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/util/prefs.dart';
@@ -35,7 +36,7 @@ class PathPainter extends CustomPainter {
   final int? selectedRotTarget;
   final int? hoveredMarker;
   final int? selectedMarker;
-  final PathPlannerTrajectory? simulatedPath;
+  final PhysicsSimulationResult? simulatedPath;
   final SharedPreferences prefs;
   final PathPlannerPath? optimizedPath;
 
@@ -85,9 +86,8 @@ class PathPainter extends CustomPainter {
     }
 
     if (simulatedPath != null && animation != null) {
-      previewTime =
-          Tween<num>(begin: 0, end: simulatedPath!.states.last.timeSeconds)
-              .animate(animation);
+      previewTime = Tween<num>(begin: 0, end: simulatedPath!.totalTimeSeconds)
+          .animate(animation);
     }
   }
 
@@ -184,53 +184,31 @@ class PathPainter extends CustomPainter {
       }
     }
 
+    if (simulatedPath != null) {
+      _paintGhostPath(simulatedPath!, canvas,
+          colorScheme.secondary.withAlpha(90));
+    }
+
     if (prefs.getBool(PrefsKeys.showStates) ?? Defaults.showStates) {
-      _paintTrajectoryStates(simulatedPath, canvas);
+      _paintSimulationStates(simulatedPath, canvas);
     }
 
     if (previewTime != null) {
-      TrajectoryState state = simulatedPath!.sample(previewTime!.value);
-      Rotation2d rotation = state.pose.rotation;
+    PhysicsSimState state = simulatedPath!.sample(previewTime!.value);
 
-      if (robotConfig.holonomic && state.moduleStates.isNotEmpty) {
-        // Calculate the module positions based off of the robot position
-        // so they don't move relative to the robot when interpolating
-        // between trajectory states
-        List<Pose2d> modPoses = [
-          Pose2d(
-              state.pose.translation +
-                  robotConfig.moduleLocations[0].rotateBy(rotation),
-              state.moduleStates[0].fieldAngle),
-          Pose2d(
-              state.pose.translation +
-                  robotConfig.moduleLocations[1].rotateBy(rotation),
-              state.moduleStates[1].fieldAngle),
-          Pose2d(
-              state.pose.translation +
-                  robotConfig.moduleLocations[2].rotateBy(rotation),
-              state.moduleStates[2].fieldAngle),
-          Pose2d(
-              state.pose.translation +
-                  robotConfig.moduleLocations[3].rotateBy(rotation),
-              state.moduleStates[3].fieldAngle),
-        ];
-        PathPainterUtil.paintRobotModules(
-            modPoses, fieldImage, scale, canvas, colorScheme.primary);
-      }
-
-      PathPainterUtil.paintRobotOutline(
-        Pose2d(state.pose.translation, rotation),
-        fieldImage,
-        robotConfig.bumperSize,
-        robotConfig.bumperOffset,
-        scale,
-        canvas,
-        colorScheme.primary,
-        colorScheme.surfaceContainer,
-        robotFeatures,
-        showDetails: prefs.getBool(PrefsKeys.showRobotDetails) ??
-            Defaults.showRobotDetails,
-      );
+    PathPainterUtil.paintRobotOutline(
+    state.pose,
+    fieldImage,
+    robotConfig.bumperSize,
+    robotConfig.bumperOffset,
+    scale,
+    canvas,
+    colorScheme.primary,
+    colorScheme.surfaceContainer,
+    robotFeatures,
+    showDetails: prefs.getBool(PrefsKeys.showRobotDetails) ??
+      Defaults.showRobotDetails,
+    );
     }
   }
 
@@ -239,34 +217,30 @@ class PathPainter extends CustomPainter {
     return true; // This will just be repainted all the time anyways from the animation
   }
 
-  void _paintTrajectoryStates(PathPlannerTrajectory? traj, Canvas canvas) {
-    if (traj == null) {
+  void _paintSimulationStates(
+      PhysicsSimulationResult? result, Canvas canvas) {
+    if (result == null || result.states.isEmpty) {
       return;
     }
 
     var paint = Paint()..style = PaintingStyle.fill;
 
     num maxVel = 0.0;
-    for (TrajectoryState s in traj.states) {
-      maxVel = max(
-          maxVel, sqrt(pow(s.fieldSpeeds.vx, 2) + pow(s.fieldSpeeds.vy, 2)));
+    for (PhysicsSimState s in result.states) {
+      maxVel = max(maxVel, s.velocity.abs());
     }
 
-    for (TrajectoryState s in traj.states) {
-      num normalizedVel =
-          sqrt(pow(s.fieldSpeeds.vx, 2) + pow(s.fieldSpeeds.vy, 2)) / maxVel;
+    for (PhysicsSimState s in result.states) {
+      num normalizedVel = maxVel == 0.0 ? 0.0 : (s.velocity.abs() / maxVel);
       normalizedVel = normalizedVel.clamp(0.0, 1.0);
 
       if (normalizedVel <= 0.33) {
-        // Lerp between red and orange
         paint.color =
             Color.lerp(Colors.red, Colors.orange, normalizedVel / 0.33)!;
       } else if (normalizedVel <= 0.67) {
-        // Lerp between orange and yellow
         paint.color = Color.lerp(
             Colors.orange, Colors.yellow, (normalizedVel - 0.33) / 0.34)!;
       } else {
-        // Lerp between yellow and green
         paint.color = Color.lerp(
             Colors.yellow, Colors.green, (normalizedVel - 0.67) / 0.33)!;
       }
@@ -274,6 +248,32 @@ class PathPainter extends CustomPainter {
           s.pose.translation, scale, fieldImage);
       canvas.drawCircle(pos, 3.0, paint);
     }
+  }
+
+  void _paintGhostPath(
+      PhysicsSimulationResult result, Canvas canvas, Color baseColor) {
+    if (result.states.isEmpty) {
+      return;
+    }
+
+    var paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..color = baseColor
+      ..strokeWidth = 2;
+
+    Path p = Path();
+
+    Offset start = PathPainterUtil.pointToPixelOffset(
+        result.states.first.pose.translation, scale, fieldImage);
+    p.moveTo(start.dx, start.dy);
+
+    for (int i = 1; i < result.states.length; i++) {
+      Offset pos = PathPainterUtil.pointToPixelOffset(
+          result.states[i].pose.translation, scale, fieldImage);
+      p.lineTo(pos.dx, pos.dy);
+    }
+
+    canvas.drawPath(p, paint);
   }
 
   void _paintTrajectory(
@@ -731,23 +731,26 @@ class PathPainter extends CustomPainter {
     Waypoint waypoint = path.waypoints[waypointIdx];
 
     if (!simple) {
-      //draw control point lines
-      if (waypoint.nextControl != null) {
-        canvas.drawLine(
-            PathPainterUtil.pointToPixelOffset(
-                waypoint.anchor, scale, fieldImage),
-            PathPainterUtil.pointToPixelOffset(
-                waypoint.nextControl!, scale, fieldImage),
-            paint);
-      }
-      if (waypoint.prevControl != null) {
-        canvas.drawLine(
-            PathPainterUtil.pointToPixelOffset(
-                waypoint.anchor, scale, fieldImage),
-            PathPainterUtil.pointToPixelOffset(
-                waypoint.prevControl!, scale, fieldImage),
-            paint);
-      }
+    if (waypoint.tolerance > 0) {
+    final tolerancePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..color = colorScheme.secondary.withAlpha(80)
+      ..strokeWidth = 2;
+    canvas.drawCircle(
+      PathPainterUtil.pointToPixelOffset(
+        waypoint.anchor, scale, fieldImage),
+      PathPainterUtil.metersToPixels(
+        waypoint.tolerance.toDouble(), scale, fieldImage),
+      tolerancePaint);
+    }
+
+    // Draw heading handle line
+    canvas.drawLine(
+      PathPainterUtil.pointToPixelOffset(
+        waypoint.anchor, scale, fieldImage),
+      PathPainterUtil.pointToPixelOffset(
+        waypoint.headingHandlePosition(), scale, fieldImage),
+      paint);
     }
 
     if (waypointIdx == 0) {
@@ -778,53 +781,27 @@ class PathPainter extends CustomPainter {
         paint);
 
     if (!simple) {
-      // draw control points
-      if (waypoint.nextControl != null) {
-        paint.style = PaintingStyle.fill;
-        if (waypointIdx == selectedWaypoint) {
-          paint.color = Colors.orange;
-        } else if (waypointIdx == hoveredWaypoint) {
-          paint.color = Colors.deepPurpleAccent;
-        } else {
-          paint.color = colorScheme.secondary;
-        }
-
-        canvas.drawCircle(
-            PathPainterUtil.pointToPixelOffset(
-                waypoint.nextControl!, scale, fieldImage),
-            PathPainterUtil.uiPointSizeToPixels(20, scale, fieldImage),
-            paint);
-        paint.style = PaintingStyle.stroke;
-        paint.color = colorScheme.surfaceContainer;
-        canvas.drawCircle(
-            PathPainterUtil.pointToPixelOffset(
-                waypoint.nextControl!, scale, fieldImage),
-            PathPainterUtil.uiPointSizeToPixels(20, scale, fieldImage),
-            paint);
+      paint.style = PaintingStyle.fill;
+      if (waypointIdx == selectedWaypoint) {
+        paint.color = Colors.orange;
+      } else if (waypointIdx == hoveredWaypoint) {
+        paint.color = Colors.deepPurpleAccent;
+      } else {
+        paint.color = colorScheme.secondary;
       }
-      if (waypoint.prevControl != null) {
-        paint.style = PaintingStyle.fill;
-        if (waypointIdx == selectedWaypoint) {
-          paint.color = Colors.orange;
-        } else if (waypointIdx == hoveredWaypoint) {
-          paint.color = Colors.deepPurpleAccent;
-        } else {
-          paint.color = colorScheme.secondary;
-        }
 
-        canvas.drawCircle(
-            PathPainterUtil.pointToPixelOffset(
-                waypoint.prevControl!, scale, fieldImage),
-            PathPainterUtil.uiPointSizeToPixels(20, scale, fieldImage),
-            paint);
-        paint.style = PaintingStyle.stroke;
-        paint.color = colorScheme.surfaceContainer;
-        canvas.drawCircle(
-            PathPainterUtil.pointToPixelOffset(
-                waypoint.prevControl!, scale, fieldImage),
-            PathPainterUtil.uiPointSizeToPixels(20, scale, fieldImage),
-            paint);
-      }
+      canvas.drawCircle(
+          PathPainterUtil.pointToPixelOffset(
+              waypoint.headingHandlePosition(), scale, fieldImage),
+          PathPainterUtil.uiPointSizeToPixels(20, scale, fieldImage),
+          paint);
+      paint.style = PaintingStyle.stroke;
+      paint.color = colorScheme.surfaceContainer;
+      canvas.drawCircle(
+          PathPainterUtil.pointToPixelOffset(
+              waypoint.headingHandlePosition(), scale, fieldImage),
+          PathPainterUtil.uiPointSizeToPixels(20, scale, fieldImage),
+          paint);
     }
   }
 

@@ -11,6 +11,7 @@ import 'package:pathplanner/widgets/editor/tree_widgets/path_optimization_tree.d
 import 'package:pathplanner/widgets/editor/tree_widgets/point_towards_zones_tree.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/rotation_targets_tree.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/waypoints_tree.dart';
+import 'package:pathplanner/services/save_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:undo/undo.dart';
 
@@ -150,6 +151,15 @@ class _PathTreeState extends State<PathTree> {
                 child: IconButton(
                   onPressed: widget.onRenderPath,
                   icon: const Icon(Icons.ios_share),
+                ),
+              ),
+              Tooltip(
+                message: 'Export to Custom Format',
+                waitDuration: const Duration(milliseconds: 500),
+                child: IconButton(
+                  onPressed: () =>
+                      SaveService.exportToCustomFormat(widget.path.waypoints),
+                  icon: const Icon(Icons.file_upload_outlined),
                 ),
               ),
               Tooltip(

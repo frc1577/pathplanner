@@ -104,9 +104,9 @@ class _WaypointsTreeState extends State<WaypointsTree> {
     Waypoint waypoint = waypoints[waypointIdx];
 
     String name = 'Waypoint $waypointIdx';
-    if (waypoint.isStartPoint) {
+    if (waypointIdx == 0) {
       name = 'Start Point';
-    } else if (waypoint.isEndPoint) {
+    } else if (waypointIdx == waypoints.length - 1) {
       name = 'End Point';
     }
 
@@ -236,8 +236,8 @@ class _WaypointsTreeState extends State<WaypointsTree> {
               const SizedBox(width: 8),
               Expanded(
                 child: NumberTextField(
-                  initialValue: waypoint.heading.degrees,
-                  label: 'Heading (Deg)',
+                  initialValue: waypoint.holonomicAngle.degrees,
+                  label: 'Swerve Heading (Deg)',
                   arrowKeyIncrement: 1.0,
                   onSubmitted: (value) {
                     if (value != null) {
@@ -245,7 +245,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                       widget.undoStack.add(_waypointChange(
                         wRef,
                         () => wRef.setHeading(Rotation2d.fromDegrees(value)),
-                        (oldVal) => wRef.setHeading(oldVal.heading),
+                        (oldVal) => wRef.setHeading(oldVal.holonomicAngle),
                       ));
                     }
                   },
@@ -258,50 +258,92 @@ class _WaypointsTreeState extends State<WaypointsTree> {
           padding: const EdgeInsets.symmetric(horizontal: 6.0),
           child: Row(
             children: [
-              if (!waypoint.isStartPoint)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 12.0),
-                    child: NumberTextField(
-                      initialValue: waypoint.prevControlLength!,
-                      label: 'Previous Control Length (M)',
-                      onSubmitted: (value) {
-                        if (value != null) {
-                          Waypoint wRef = waypoints[waypointIdx];
-                          widget.undoStack.add(_waypointChange(
-                            wRef,
-                            () => wRef.setPrevControlLength(value),
-                            (oldVal) => wRef.setPrevControlLength(
-                                oldVal.prevControlLength!),
-                          ));
-                        }
-                      },
-                    ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: NumberTextField(
+                    initialValue: waypoint.cruiseVelocity,
+                    label: 'Cruise Velocity (M/S)',
+                    onSubmitted: (value) {
+                      if (value != null) {
+                        Waypoint wRef = waypoints[waypointIdx];
+                        widget.undoStack.add(_waypointChange(
+                          wRef,
+                          () => wRef.cruiseVelocity = value,
+                          (oldVal) => wRef.cruiseVelocity = oldVal.cruiseVelocity,
+                        ));
+                      }
+                    },
                   ),
                 ),
-              if (!waypoint.isStartPoint && !waypoint.isEndPoint)
-                const SizedBox(width: 8),
-              if (!waypoint.isEndPoint)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 12.0),
-                    child: NumberTextField(
-                      initialValue: waypoint.nextControlLength!,
-                      label: 'Next Control Length (M)',
-                      onSubmitted: (value) {
-                        if (value != null) {
-                          Waypoint wRef = waypoints[waypointIdx];
-                          widget.undoStack.add(_waypointChange(
-                            wRef,
-                            () => wRef.setNextControlLength(value),
-                            (oldVal) => wRef.setNextControlLength(
-                                oldVal.nextControlLength!),
-                          ));
-                        }
-                      },
-                    ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: NumberTextField(
+                    initialValue: waypoint.maxAcceleration,
+                    label: 'Max Accel (M/S²)',
+                    onSubmitted: (value) {
+                      if (value != null) {
+                        Waypoint wRef = waypoints[waypointIdx];
+                        widget.undoStack.add(_waypointChange(
+                          wRef,
+                          () => wRef.maxAcceleration = value,
+                          (oldVal) => wRef.maxAcceleration = oldVal.maxAcceleration,
+                        ));
+                      }
+                    },
                   ),
                 ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: NumberTextField(
+                    initialValue: waypoint.targetEndVelocity,
+                    label: 'Target End Velocity (M/S)',
+                    onSubmitted: (value) {
+                      if (value != null) {
+                        Waypoint wRef = waypoints[waypointIdx];
+                        widget.undoStack.add(_waypointChange(
+                          wRef,
+                          () => wRef.targetEndVelocity = value,
+                          (oldVal) => wRef.targetEndVelocity =
+                              oldVal.targetEndVelocity,
+                        ));
+                      }
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: NumberTextField(
+                    initialValue: waypoint.tolerance,
+                    label: 'Arrival Tolerance (M)',
+                    onSubmitted: (value) {
+                      if (value != null) {
+                        Waypoint wRef = waypoints[waypointIdx];
+                        widget.undoStack.add(_waypointChange(
+                          wRef,
+                          () => wRef.tolerance = value,
+                          (oldVal) => wRef.tolerance = oldVal.tolerance,
+                        ));
+                      }
+                    },
+                  ),
+                ),
+              ),
             ],
           ),
         ),

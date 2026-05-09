@@ -115,11 +115,13 @@ class PathPlannerPath {
     waypoints.addAll([
       Waypoint(
         anchor: const Translation2d(2.0, 7.0),
-        nextControl: const Translation2d(3.0, 7.0),
+        cruiseVelocity: globalConstraints.maxVelocityMPS,
+        maxAcceleration: globalConstraints.maxAccelerationMPSSq,
       ),
       Waypoint(
-        prevControl: const Translation2d(3.0, 6.0),
         anchor: const Translation2d(4.0, 6.0),
+        cruiseVelocity: globalConstraints.maxVelocityMPS,
+        maxAcceleration: globalConstraints.maxAccelerationMPSSq,
       ),
     ]);
 
@@ -260,12 +262,15 @@ class PathPlannerPath {
   }
 
   void addWaypoint(Translation2d anchorPos) {
-    waypoints[waypoints.length - 1].addNextControl();
+    Waypoint prev = waypoints[waypoints.length - 1];
     waypoints.add(
       Waypoint(
-        prevControl:
-            (waypoints[waypoints.length - 1].nextControl! + anchorPos) * 0.5,
         anchor: anchorPos,
+        holonomicAngle: prev.holonomicAngle,
+        cruiseVelocity: prev.cruiseVelocity,
+        maxAcceleration: prev.maxAcceleration,
+        targetEndVelocity: prev.targetEndVelocity,
+        tolerance: prev.tolerance,
       ),
     );
   }
@@ -277,14 +282,16 @@ class PathPlannerPath {
 
     Waypoint before = waypoints[waypointIdx];
     Waypoint after = waypoints[waypointIdx + 1];
-    Translation2d anchorPos = GeometryUtil.cubicLerp(before.anchor,
-        before.nextControl!, after.prevControl!, after.anchor, 0.5);
+    Translation2d anchorPos = before.anchor.interpolate(after.anchor, 0.5);
 
     Waypoint toAdd = Waypoint(
       anchor: anchorPos,
-      prevControl: (anchorPos + before.nextControl!) * 0.5,
+      holonomicAngle: before.holonomicAngle,
+      cruiseVelocity: before.cruiseVelocity,
+      maxAcceleration: before.maxAcceleration,
+      targetEndVelocity: before.targetEndVelocity,
+      tolerance: before.tolerance,
     );
-    toAdd.addNextControl();
 
     waypoints.insert(waypointIdx + 1, toAdd);
 
@@ -691,12 +698,7 @@ class PathPlannerPath {
 
     num t = pos - i;
 
-    return GeometryUtil.cubicLerp(
-        waypoints[i].anchor,
-        waypoints[i].nextControl!,
-        waypoints[i + 1].prevControl!,
-        waypoints[i + 1].anchor,
-        t);
+  return waypoints[i].anchor.interpolate(waypoints[i + 1].anchor, t);
   }
 
   num _getCurveRadiusAtPoint(int index) {

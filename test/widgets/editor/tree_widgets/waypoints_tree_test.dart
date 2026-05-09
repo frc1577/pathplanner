@@ -293,7 +293,8 @@ void main() {
       ),
     ));
 
-    final textField = find.widgetWithText(NumberTextField, 'Heading (Deg)');
+  final textField =
+    find.widgetWithText(NumberTextField, 'Swerve Heading (Deg)');
 
     expect(textField, findsOneWidget);
 
@@ -311,7 +312,7 @@ void main() {
     expect(path.waypoints[1].heading.degrees, closeTo(oldVal.degrees, epsilon));
   });
 
-  testWidgets('Prev length text field', (widgetTester) async {
+  testWidgets('Cruise velocity text field', (widgetTester) async {
     await widgetTester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: WaypointsTree(
@@ -327,26 +328,26 @@ void main() {
       ),
     ));
 
-    var textField =
-        find.widgetWithText(NumberTextField, 'Previous Control Length (M)');
+  var textField =
+    find.widgetWithText(NumberTextField, 'Cruise Velocity (M/S)');
 
     expect(textField, findsOneWidget);
 
-    num oldVal = path.waypoints[1].prevControlLength!;
+  num oldVal = path.waypoints[1].cruiseVelocity;
 
     await widgetTester.enterText(textField, '0.75');
     await widgetTester.testTextInput.receiveAction(TextInputAction.done);
     await widgetTester.pump();
 
     expect(pathChanged, true);
-    expect(path.waypoints[1].prevControlLength, closeTo(0.75, epsilon));
+  expect(path.waypoints[1].cruiseVelocity, closeTo(0.75, epsilon));
 
     undoStack.undo();
     await widgetTester.pump();
-    expect(path.waypoints[1].prevControlLength, closeTo(oldVal, epsilon));
+    expect(path.waypoints[1].cruiseVelocity, closeTo(oldVal, epsilon));
   });
 
-  testWidgets('Next length text field', (widgetTester) async {
+  testWidgets('Max acceleration text field', (widgetTester) async {
     await widgetTester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: WaypointsTree(
@@ -362,23 +363,23 @@ void main() {
       ),
     ));
 
-    var textField =
-        find.widgetWithText(NumberTextField, 'Next Control Length (M)');
+  var textField =
+    find.widgetWithText(NumberTextField, 'Max Accel (M/S²)');
 
     expect(textField, findsOneWidget);
 
-    num oldVal = path.waypoints[0].nextControlLength!;
+  num oldVal = path.waypoints[0].maxAcceleration;
 
     await widgetTester.enterText(textField, '0.75');
     await widgetTester.testTextInput.receiveAction(TextInputAction.done);
     await widgetTester.pump();
 
     expect(pathChanged, true);
-    expect(path.waypoints[0].nextControlLength, closeTo(0.75, epsilon));
+  expect(path.waypoints[0].maxAcceleration, closeTo(0.75, epsilon));
 
     undoStack.undo();
     await widgetTester.pump();
-    expect(path.waypoints[0].nextControlLength, closeTo(oldVal, epsilon));
+    expect(path.waypoints[0].maxAcceleration, closeTo(oldVal, epsilon));
   });
 
   testWidgets('Insert waypoint button', (widgetTester) async {
