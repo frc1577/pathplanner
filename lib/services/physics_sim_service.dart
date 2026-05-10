@@ -148,7 +148,9 @@ class PhysicsSimService {
         ));
 
         final num currentDistance = (segmentLength - distanceAlong).abs();
-        if (min(previousDistance, currentDistance) <= tolerance) {
+        if (min(previousDistance, currentDistance) <= tolerance ||
+            (currentDistance <= tolerance + 1e-6 &&
+                currentVelocity <= targetEndVelocity + 1e-3)) {
           break;
         }
 
