@@ -15,7 +15,7 @@
 - **Playback:** The preview scrubber uses precomputed physics states so time is physically accurate. The ghost path should reveal overshoot if tolerance is small and velocity high.
 - **Export:** Path header includes a **Custom Export** button that calls the hook and passes all waypoint data.
 
-## Progress Snapshot (May 10, 2026)
+## Progress Snapshot (May 11, 2026)
 ### ✅ Completed
 - **Waypoint model refactor** (no Bezier controls):
   - Updated `lib/path/waypoint.dart` to include `holonomicAngle`, `cruiseVelocity`, `maxAcceleration`, `targetEndVelocity`, `tolerance`.

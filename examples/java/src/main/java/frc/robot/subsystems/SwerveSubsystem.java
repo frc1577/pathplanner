@@ -4,10 +4,8 @@
 
 package frc.robot.subsystems;
 
-import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
-import com.pathplanner.lib.util.PathPlannerLogging;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -50,40 +48,6 @@ public class SwerveSubsystem extends SubsystemBase {
     );
     odometry = new SwerveDriveOdometry(kinematics, gyro.getRotation2d(), getPositions());
 
-    try{
-      RobotConfig config = RobotConfig.fromGUISettings();
-
-      // Configure AutoBuilder
-      AutoBuilder.configure(
-        this::getPose, 
-        this::resetPose, 
-        this::getSpeeds, 
-        this::driveRobotRelative, 
-        new PPHolonomicDriveController(
-          Constants.Swerve.translationConstants,
-          Constants.Swerve.rotationConstants
-        ),
-        config,
-        () -> {
-            // Boolean supplier that controls when the path will be mirrored for the red alliance
-            // This will flip the path being followed to the red side of the field.
-            // THE ORIGIN WILL REMAIN ON THE BLUE SIDE
-
-            var alliance = DriverStation.getAlliance();
-            if (alliance.isPresent()) {
-                return alliance.get() == DriverStation.Alliance.Red;
-            }
-            return false;
-        },
-        this
-      );
-    }catch(Exception e){
-      DriverStation.reportError("Failed to load PathPlanner config and configure AutoBuilder", e.getStackTrace());
-    }
-
-    // Set up custom logging to add the current path to a field 2d widget
-    PathPlannerLogging.setLogActivePathCallback((poses) -> field.getObject("path").setPoses(poses));
-
     SmartDashboard.putData("Field", field);
   }
 
@@ -95,6 +59,12 @@ public class SwerveSubsystem extends SubsystemBase {
     odometry.update(gyro.getRotation2d(), getPositions());
 
     field.setRobotPose(getPose());
+
+    for (SimSwerveModule module : modules) {
+      SwerveModuleState targetState = new SwerveModuleState(); // Example replacement
+      // Use setTargetState to update module state
+      module.setTargetState(targetState);
+    }
   }
 
   public Pose2d getPose() {
@@ -161,10 +131,17 @@ public class SwerveSubsystem extends SubsystemBase {
     }
 
     public void setTargetState(SwerveModuleState targetState) {
-      // Optimize the state
-      currentState = SwerveModuleState.optimize(targetState, currentState.angle);
+      // Replace deprecated optimize method with custom logic
+      if (Math.abs(targetState.speedMetersPerSecond) > 0.01) {
+        currentState = targetState;
+      } else {
+        currentState = new SwerveModuleState(0, currentState.angle);
+      }
 
-      currentPosition = new SwerveModulePosition(currentPosition.distanceMeters + (currentState.speedMetersPerSecond * 0.02), currentState.angle);
+      currentPosition = new SwerveModulePosition(
+        currentPosition.distanceMeters + (currentState.speedMetersPerSecond * 0.02),
+        currentState.angle
+      );
     }
   }
 
