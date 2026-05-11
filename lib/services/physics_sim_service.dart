@@ -97,7 +97,7 @@ class PhysicsSimService {
       final Waypoint end = path.waypoints[i + 1];
 
       final Translation2d segmentVector = end.anchor - start.anchor;
-  final num segmentLength = segmentVector.norm;
+      final num segmentLength = segmentVector.norm;
       if (segmentLength <= 1e-6) {
         continue;
       }
@@ -107,7 +107,6 @@ class PhysicsSimService {
 
       final num cruiseVelocity = max(0.0, start.cruiseVelocity);
       final num maxAccel = max(1e-6, start.maxAcceleration);
-      final num targetEndVelocity = max(0.0, end.targetEndVelocity);
       final num tolerance = max(0.0, end.tolerance);
 
       final Rotation2d targetHeading = end.holonomicAngle;
@@ -115,16 +114,16 @@ class PhysicsSimService {
 
       num distanceAlong = 0.0;
       int steps = 0;
-  while (true) {
+      while (true) {
         final num remainingDistance = max(0.0, segmentLength - distanceAlong);
         final num stopVelocity = sqrt(
-            max(0.0, pow(targetEndVelocity, 2) + 2 * maxAccel * remainingDistance));
+            max(0.0, pow(cruiseVelocity, 2) + 2 * maxAccel * remainingDistance));
         final num desiredVelocity = min(cruiseVelocity, stopVelocity);
 
-    currentVelocity =
-      _stepVelocity(currentVelocity, desiredVelocity, maxAccel, dt);
-    final num previousDistance = (segmentLength - distanceAlong).abs();
-    distanceAlong = distanceAlong + currentVelocity * dt;
+        currentVelocity =
+            _stepVelocity(currentVelocity, desiredVelocity, maxAccel, dt);
+        final num previousDistance = (segmentLength - distanceAlong).abs();
+        distanceAlong = distanceAlong + currentVelocity * dt;
         currentPos = start.anchor + (direction * distanceAlong);
 
         final num remainingHeading = headingError.abs();
@@ -150,7 +149,7 @@ class PhysicsSimService {
         final num currentDistance = (segmentLength - distanceAlong).abs();
         if (min(previousDistance, currentDistance) <= tolerance ||
             (currentDistance <= tolerance + 1e-6 &&
-                currentVelocity <= targetEndVelocity + 1e-3)) {
+                currentVelocity <= 1e-3)) {
           break;
         }
 

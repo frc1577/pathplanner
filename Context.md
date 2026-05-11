@@ -10,7 +10,7 @@
   - **Swerve Heading (Deg)**
   - **Cruise Velocity (M/S)**
   - **Max Accel (M/S²)**
-  - **Target End Velocity (M/S)**
+  - **Target End Velocity (M/S)** (Removed from implementation, kept as a reference)
   - **Arrival Tolerance (M)**
 - **Playback:** The preview scrubber uses precomputed physics states so time is physically accurate. The ghost path should reveal overshoot if tolerance is small and velocity high.
 - **Export:** Path header includes a **Custom Export** button that calls the hook and passes all waypoint data.

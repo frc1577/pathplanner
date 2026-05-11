@@ -269,8 +269,6 @@ class PathPlannerPath {
         holonomicAngle: prev.holonomicAngle,
         cruiseVelocity: prev.cruiseVelocity,
         maxAcceleration: prev.maxAcceleration,
-        targetEndVelocity: prev.targetEndVelocity,
-        tolerance: prev.tolerance,
       ),
     );
   }
@@ -289,7 +287,6 @@ class PathPlannerPath {
       holonomicAngle: before.holonomicAngle,
       cruiseVelocity: before.cruiseVelocity,
       maxAcceleration: before.maxAcceleration,
-      targetEndVelocity: before.targetEndVelocity,
       tolerance: before.tolerance,
     );
 
@@ -698,7 +695,7 @@ class PathPlannerPath {
 
     num t = pos - i;
 
-  return waypoints[i].anchor.interpolate(waypoints[i + 1].anchor, t);
+    return waypoints[i].anchor.interpolate(waypoints[i + 1].anchor, t);
   }
 
   num _getCurveRadiusAtPoint(int index) {

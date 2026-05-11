@@ -11,7 +11,6 @@ class Waypoint {
   Rotation2d holonomicAngle;
   num cruiseVelocity;
   num maxAcceleration;
-  num targetEndVelocity;
   num tolerance;
   bool isLocked;
   String? linkedName;
@@ -24,7 +23,6 @@ class Waypoint {
     Rotation2d? holonomicAngle,
     this.cruiseVelocity = 0.0,
     this.maxAcceleration = 0.0,
-    this.targetEndVelocity = 0.0,
     this.tolerance = 0.1,
     this.isLocked = false,
     this.linkedName,
@@ -40,7 +38,6 @@ class Waypoint {
           holonomicAngle: _holonomicAngleFromJson(json),
           cruiseVelocity: json['cruiseVelocity'] ?? 0.0,
           maxAcceleration: json['maxAcceleration'] ?? 0.0,
-          targetEndVelocity: json['targetEndVelocity'] ?? 0.0,
           tolerance: json['tolerance'] ?? 0.1,
           isLocked: json['isLocked'] ?? false,
           linkedName: json['linkedName'],
@@ -72,7 +69,6 @@ class Waypoint {
       'holonomicAngle': holonomicAngle.degrees,
       'cruiseVelocity': cruiseVelocity,
       'maxAcceleration': maxAcceleration,
-      'targetEndVelocity': targetEndVelocity,
       'tolerance': tolerance,
       'isLocked': isLocked,
       'linkedName': linkedName,
@@ -95,7 +91,6 @@ class Waypoint {
       holonomicAngle: holonomicAngle,
       cruiseVelocity: cruiseVelocity,
       maxAcceleration: maxAcceleration,
-      targetEndVelocity: targetEndVelocity,
       tolerance: tolerance,
       isLocked: isLocked,
       linkedName: linkedName,
@@ -152,11 +147,10 @@ class Waypoint {
       other.holonomicAngle == holonomicAngle &&
       other.cruiseVelocity == cruiseVelocity &&
       other.maxAcceleration == maxAcceleration &&
-      other.targetEndVelocity == targetEndVelocity &&
       other.tolerance == tolerance &&
       other.linkedName == linkedName;
 
   @override
   int get hashCode => Object.hash(anchor, holonomicAngle, cruiseVelocity,
-      maxAcceleration, targetEndVelocity, tolerance, linkedName);
+      maxAcceleration, tolerance, linkedName);
 }

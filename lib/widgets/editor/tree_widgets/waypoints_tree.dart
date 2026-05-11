@@ -308,27 +308,6 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                 child: Padding(
                   padding: const EdgeInsets.only(top: 12.0),
                   child: NumberTextField(
-                    initialValue: waypoint.targetEndVelocity,
-                    label: 'Target End Velocity (M/S)',
-                    onSubmitted: (value) {
-                      if (value != null) {
-                        Waypoint wRef = waypoints[waypointIdx];
-                        widget.undoStack.add(_waypointChange(
-                          wRef,
-                          () => wRef.targetEndVelocity = value,
-                          (oldVal) => wRef.targetEndVelocity =
-                              oldVal.targetEndVelocity,
-                        ));
-                      }
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 12.0),
-                  child: NumberTextField(
                     initialValue: waypoint.tolerance,
                     label: 'Arrival Tolerance (M)',
                     onSubmitted: (value) {

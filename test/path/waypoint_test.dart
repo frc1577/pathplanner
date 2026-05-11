@@ -12,7 +12,6 @@ void main() {
         holonomicAngle: Rotation2d.fromDegrees(45),
         cruiseVelocity: 2.5,
         maxAcceleration: 3.5,
-        targetEndVelocity: 1.5,
         tolerance: 0.15,
       );
 
@@ -20,7 +19,6 @@ void main() {
       expect(w.holonomicAngle.degrees, closeTo(45.0, epsilon));
       expect(w.cruiseVelocity, 2.5);
       expect(w.maxAcceleration, 3.5);
-      expect(w.targetEndVelocity, 1.5);
       expect(w.tolerance, 0.15);
     });
 
@@ -30,7 +28,6 @@ void main() {
         holonomicAngle: Rotation2d.fromDegrees(30),
         cruiseVelocity: 2.0,
         maxAcceleration: 4.0,
-        targetEndVelocity: 0.5,
         tolerance: 0.2,
       );
 
@@ -46,7 +43,6 @@ void main() {
         holonomicAngle: Rotation2d.fromDegrees(30),
         cruiseVelocity: 2.0,
         maxAcceleration: 4.0,
-        targetEndVelocity: 0.5,
         tolerance: 0.2,
       );
       Waypoint cloned = w.clone();
@@ -64,7 +60,6 @@ void main() {
         holonomicAngle: Rotation2d.fromDegrees(30),
         cruiseVelocity: 2.0,
         maxAcceleration: 4.0,
-        targetEndVelocity: 0.5,
         tolerance: 0.2,
       );
       Waypoint w2 = Waypoint(
@@ -72,7 +67,6 @@ void main() {
         holonomicAngle: Rotation2d.fromDegrees(30),
         cruiseVelocity: 2.0,
         maxAcceleration: 4.0,
-        targetEndVelocity: 0.5,
         tolerance: 0.2,
       );
       Waypoint w3 = Waypoint(
@@ -80,7 +74,6 @@ void main() {
         holonomicAngle: Rotation2d.fromDegrees(31),
         cruiseVelocity: 2.0,
         maxAcceleration: 4.0,
-        targetEndVelocity: 0.5,
         tolerance: 0.2,
       );
 
