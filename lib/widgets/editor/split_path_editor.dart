@@ -732,7 +732,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
   void _simulatePath() async {
     if (widget.simulate) {
       setState(() {
-        _simResult = PhysicsSimService.simulatePath(widget.path);
+        _simResult = PhysicsSimService.generateSimulatedPath(widget.path);
         if (!(_simResult?.totalTimeSeconds.isFinite ?? false) ||
             (_simResult?.states.isEmpty ?? true)) {
           _simResult = null;

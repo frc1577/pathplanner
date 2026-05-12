@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:pathplanner/controllers/profiled_pid_controller.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/util/wpimath/geometry.dart';
@@ -161,6 +162,87 @@ class PhysicsSimService {
     }
 
     return PhysicsSimulationResult(states);
+  }
+
+  static PhysicsSimulationResult generateSimulatedPath(PathPlannerPath path,
+      {double dt = _defaultDt, double maxAcceleration = 2.0}) {
+    if (path.waypoints.length < 2) {
+      return const PhysicsSimulationResult([]);
+    }
+
+    List<PhysicsSimState> simulatedPath = [];
+    num time = 0.0;
+    num currentVelocity = 0.0;
+    num currentAngularVelocity = 0.0;
+    Rotation2d currentHeading = path.waypoints.first.holonomicAngle;
+    Translation2d currentPos = path.waypoints.first.anchor;
+
+    ProfiledPIDController translationalController = ProfiledPIDController(
+      1.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
+    );
+    ProfiledPIDController rotationalController = ProfiledPIDController(
+      1.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
+    );
+    ProfiledPIDController xController = ProfiledPIDController(
+      1.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
+    );
+    ProfiledPIDController yController = ProfiledPIDController(
+      1.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
+    );
+
+    translationalController.setGoal(State(currentPos.x.toDouble(), 0.0));
+    rotationalController.setGoal(State(currentHeading.radians.toDouble(), 0.0));
+    xController.setGoal(State(currentPos.x.toDouble(), 0.0));
+    yController.setGoal(State(currentPos.y.toDouble(), 0.0));
+
+    print('Starting generateSimulatedPath with ${path.waypoints.length} waypoints');
+
+    for (int i = 0; i < path.waypoints.length - 1; i++) {
+      final Waypoint end = path.waypoints[i + 1];
+      print('Processing waypoint $i: ${end.anchor}, tolerance: ${end.tolerance}');
+
+      xController.setGoal(State(end.anchor.x.toDouble(), 0.0));
+      yController.setGoal(State(end.anchor.y.toDouble(), 0.0));
+      rotationalController.setGoal(State(end.holonomicAngle.radians.toDouble(), 0.0));
+
+      while ((currentPos - end.anchor).norm > end.tolerance) {
+        final double xOutput = xController.calculate(currentPos.x.toDouble());
+        final double yOutput = yController.calculate(currentPos.y.toDouble());
+        final double rotationalOutput =
+            rotationalController.calculate(currentHeading.radians.toDouble());
+
+        currentVelocity = (currentVelocity + sqrt(pow(xOutput, 2) + pow(yOutput, 2)) * dt)
+            .clamp(-maxAcceleration * dt, maxAcceleration * dt);
+        currentAngularVelocity = (currentAngularVelocity + rotationalOutput * dt)
+            .clamp(-maxAcceleration * dt, maxAcceleration * dt);
+
+        currentPos += Translation2d(xOutput * dt, yOutput * dt);
+        currentHeading = Rotation2d(currentHeading.radians +
+            currentAngularVelocity * dt);
+
+        time += dt;
+
+        simulatedPath.add(PhysicsSimState(
+          timeSeconds: time,
+          pose: Pose2d(currentPos, currentHeading),
+          velocity: currentVelocity,
+          angularVelocity: currentAngularVelocity,
+        ));
+
+        print('Current position: $currentPos, heading: $currentHeading, velocity: $currentVelocity');
+
+        if (simulatedPath.length > 10000) {
+          print('Simulation path too long, breaking early');
+          break;
+        }
+      }
+
+      print('Waypoint $i reached: $currentPos');
+    }
+
+    print('Finished generateSimulatedPath with ${simulatedPath.length} states');
+
+    return PhysicsSimulationResult(simulatedPath);
   }
 
   static num _stepVelocity(num current, num target, num maxAccel, num dt) {
