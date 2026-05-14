@@ -181,10 +181,10 @@ class PhysicsSimService {
       5.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
     );
     ProfiledPIDController xController = ProfiledPIDController(
-      5.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
+      5.0, 0.0, 0.0, Constraints(path.waypoints.first.cruiseVelocity.toDouble(), path.waypoints.first.maxAcceleration.toDouble()),
     );
     ProfiledPIDController yController = ProfiledPIDController(
-      5.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
+      5.0, 0.0, 0.0, Constraints(path.waypoints.first.cruiseVelocity.toDouble(), path.waypoints.first.maxAcceleration.toDouble()),
     );
     xController.reset(
     State(path.waypoints.first.anchor.x.toDouble(), 0.0));
@@ -205,6 +205,9 @@ class PhysicsSimService {
     for (int i = 0; i < path.waypoints.length - 1; i++) {
       final Waypoint end = path.waypoints[i + 1];
 
+      xController.setConstraints(Constraints(end.cruiseVelocity.toDouble(), end.maxAcceleration.toDouble()));
+      yController.setConstraints(Constraints(end.cruiseVelocity.toDouble(), end.maxAcceleration.toDouble()));
+
       xController.setGoal(State(end.anchor.x.toDouble(), 0.0));
       yController.setGoal(State(end.anchor.y.toDouble(), 0.0));
       rotationalController.setGoal(State(end.holonomicAngle.radians.toDouble(), 0.0));
@@ -220,13 +223,13 @@ class PhysicsSimService {
 
         final double linearDelta =
             (targetLinearVelocity - currentVelocity.toDouble())
-                .clamp(-maxAcceleration * dt, maxAcceleration * dt);
+                .clamp(-xController.getConstraints().maxVelocity * dt, xController.getConstraints().maxAcceleration * dt); //would also work with y controller.
 
         currentVelocity += linearDelta;
 
         final double angularDelta =
             (rotationalOutput - currentAngularVelocity.toDouble())
-                .clamp(-maxAcceleration * dt, maxAcceleration * dt);
+                .clamp(-rotationalController.getConstraints().maxVelocity * dt, rotationalController.getConstraints().maxAcceleration * dt);
 
         currentAngularVelocity += angularDelta;
         currentPos += Translation2d(xOutput * dt, yOutput * dt);
