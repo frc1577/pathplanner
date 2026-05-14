@@ -177,29 +177,33 @@ class PhysicsSimService {
     Rotation2d currentHeading = path.waypoints.first.holonomicAngle;
     Translation2d currentPos = path.waypoints.first.anchor;
 
-    ProfiledPIDController translationalController = ProfiledPIDController(
-      1.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
-    );
     ProfiledPIDController rotationalController = ProfiledPIDController(
-      1.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
+      5.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
     );
     ProfiledPIDController xController = ProfiledPIDController(
-      1.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
+      5.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
     );
     ProfiledPIDController yController = ProfiledPIDController(
-      1.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
+      5.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
     );
+    xController.reset(
+    State(path.waypoints.first.anchor.x.toDouble(), 0.0));
 
-    translationalController.setGoal(State(currentPos.x.toDouble(), 0.0));
-    rotationalController.setGoal(State(currentHeading.radians.toDouble(), 0.0));
-    xController.setGoal(State(currentPos.x.toDouble(), 0.0));
-    yController.setGoal(State(currentPos.y.toDouble(), 0.0));
+    yController.reset(
+        State(path.waypoints.first.anchor.y.toDouble(), 0.0));
+
+    rotationalController.reset(
+        State(path.waypoints.first.holonomicAngle.radians.toDouble(), 0.0));
+
+    // Set the initial goal of the controllers to the start point (first waypoint)
+    xController.setGoal(State(path.waypoints.first.anchor.x.toDouble(), 0.0));
+    yController.setGoal(State(path.waypoints.first.anchor.y.toDouble(), 0.0));
+    rotationalController.setGoal(State(path.waypoints.first.holonomicAngle.radians.toDouble(), 0.0));
 
     print('Starting generateSimulatedPath with ${path.waypoints.length} waypoints');
 
     for (int i = 0; i < path.waypoints.length - 1; i++) {
       final Waypoint end = path.waypoints[i + 1];
-      print('Processing waypoint $i: ${end.anchor}, tolerance: ${end.tolerance}');
 
       xController.setGoal(State(end.anchor.x.toDouble(), 0.0));
       yController.setGoal(State(end.anchor.y.toDouble(), 0.0));
@@ -211,11 +215,20 @@ class PhysicsSimService {
         final double rotationalOutput =
             rotationalController.calculate(currentHeading.radians.toDouble());
 
-        currentVelocity = (currentVelocity + sqrt(pow(xOutput, 2) + pow(yOutput, 2)) * dt)
-            .clamp(-maxAcceleration * dt, maxAcceleration * dt);
-        currentAngularVelocity = (currentAngularVelocity + rotationalOutput * dt)
-            .clamp(-maxAcceleration * dt, maxAcceleration * dt);
+        final double targetLinearVelocity =
+            sqrt(pow(xOutput, 2) + pow(yOutput, 2)).toDouble();
 
+        final double linearDelta =
+            (targetLinearVelocity - currentVelocity.toDouble())
+                .clamp(-maxAcceleration * dt, maxAcceleration * dt);
+
+        currentVelocity += linearDelta;
+
+        final double angularDelta =
+            (rotationalOutput - currentAngularVelocity.toDouble())
+                .clamp(-maxAcceleration * dt, maxAcceleration * dt);
+
+        currentAngularVelocity += angularDelta;
         currentPos += Translation2d(xOutput * dt, yOutput * dt);
         currentHeading = Rotation2d(currentHeading.radians +
             currentAngularVelocity * dt);
