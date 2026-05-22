@@ -468,6 +468,28 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                         ),
                       ),
                     ),
+
+                    // Toggle button to hide/show waypoints and tolerance circles.
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Card(
+                        color: colorScheme.surface.withOpacity(0.9),
+                        child: IconButton(
+                          tooltip: (widget.prefs.getBool(PrefsKeys.hidePointsAndTolerances) ?? Defaults.hidePointsAndTolerances)
+                              ? 'Show points/tolerance circles'
+                              : 'Hide points/tolerance circles',
+                          icon: Icon(widget.prefs.getBool(PrefsKeys.hidePointsAndTolerances) ?? Defaults.hidePointsAndTolerances
+                              ? Icons.visibility_off
+                              : Icons.visibility),
+                          onPressed: () {
+                            bool current = widget.prefs.getBool(PrefsKeys.hidePointsAndTolerances) ?? Defaults.hidePointsAndTolerances;
+                            widget.prefs.setBool(PrefsKeys.hidePointsAndTolerances, !current);
+                            setState(() {});
+                          },
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

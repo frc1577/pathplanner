@@ -109,12 +109,12 @@ class PathPainter extends CustomPainter {
         _paintRadius(paths[i], canvas, scale);
       }
 
-      _paintPathPoints(
-          paths[i],
-          canvas,
-          (hoveredPath == paths[i].name)
-              ? Colors.orange
-              : colorScheme.secondary);
+    _paintPathPoints(
+      paths[i],
+      canvas,
+      (hoveredPath == paths[i].name)
+        ? Colors.orange
+        : colorScheme.secondary);
 
       if (robotConfig.holonomic) {
         _paintRotations(paths[i], canvas, scale);
@@ -122,13 +122,20 @@ class PathPainter extends CustomPainter {
 
       _paintMarkers(paths[i], canvas);
 
-      if (!simple) {
-        for (int w = 0; w < paths[i].waypoints.length; w++) {
-          _paintWaypoint(paths[i], canvas, scale, w);
+      // Respect user pref to hide points and tolerance circles while keeping
+      // robot and path rendering visible.
+      bool hidePoints = prefs.getBool(PrefsKeys.hidePointsAndTolerances) ??
+          Defaults.hidePointsAndTolerances;
+
+      if (!hidePoints) {
+        if (!simple) {
+          for (int w = 0; w < paths[i].waypoints.length; w++) {
+            _paintWaypoint(paths[i], canvas, scale, w);
+          }
+        } else {
+          _paintWaypoint(paths[i], canvas, scale, 0);
+          _paintWaypoint(paths[i], canvas, scale, paths[i].waypoints.length - 1);
         }
-      } else {
-        _paintWaypoint(paths[i], canvas, scale, 0);
-        _paintWaypoint(paths[i], canvas, scale, paths[i].waypoints.length - 1);
       }
 
       _paintPointZonePositions(paths[i], canvas, scale);
@@ -306,20 +313,24 @@ class PathPainter extends CustomPainter {
       ..strokeWidth = 2
       ..color = color;
 
-    // draw anchor point
+  // draw anchor point (respect hidePoints pref)
+  bool hidePoints = prefs.getBool(PrefsKeys.hidePointsAndTolerances) ??
+    Defaults.hidePointsAndTolerances;
+  if (!hidePoints) {
     paint.style = PaintingStyle.fill;
     canvas.drawCircle(
-        PathPainterUtil.pointToPixelOffset(
-            state.pose.translation, scale, fieldImage),
-        PathPainterUtil.uiPointSizeToPixels(25, scale, fieldImage),
-        paint);
+      PathPainterUtil.pointToPixelOffset(
+        state.pose.translation, scale, fieldImage),
+      PathPainterUtil.uiPointSizeToPixels(25, scale, fieldImage),
+      paint);
     paint.style = PaintingStyle.stroke;
     paint.color = colorScheme.surfaceContainer;
     canvas.drawCircle(
-        PathPainterUtil.pointToPixelOffset(
-            state.pose.translation, scale, fieldImage),
-        PathPainterUtil.uiPointSizeToPixels(25, scale, fieldImage),
-        paint);
+      PathPainterUtil.pointToPixelOffset(
+        state.pose.translation, scale, fieldImage),
+      PathPainterUtil.uiPointSizeToPixels(25, scale, fieldImage),
+      paint);
+  }
 
     // Draw robot
     PathPainterUtil.paintRobotOutline(
@@ -730,27 +741,30 @@ class PathPainter extends CustomPainter {
 
     Waypoint waypoint = path.waypoints[waypointIdx];
 
-    if (!simple) {
-    if (waypoint.tolerance > 0) {
-    final tolerancePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..color = colorScheme.secondary.withAlpha(80)
-      ..strokeWidth = 2;
-    canvas.drawCircle(
-      PathPainterUtil.pointToPixelOffset(
-        waypoint.anchor, scale, fieldImage),
-      PathPainterUtil.metersToPixels(
-        waypoint.tolerance.toDouble(), scale, fieldImage),
-      tolerancePaint);
-    }
+    bool hidePoints = prefs.getBool(PrefsKeys.hidePointsAndTolerances) ??
+        Defaults.hidePointsAndTolerances;
 
-    // Draw heading handle line
-    canvas.drawLine(
-      PathPainterUtil.pointToPixelOffset(
-        waypoint.anchor, scale, fieldImage),
-      PathPainterUtil.pointToPixelOffset(
-        waypoint.headingHandlePosition(), scale, fieldImage),
-      paint);
+    if (!simple && !hidePoints) {
+      if (waypoint.tolerance > 0) {
+        final tolerancePaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..color = colorScheme.secondary.withAlpha(80)
+          ..strokeWidth = 2;
+        canvas.drawCircle(
+            PathPainterUtil.pointToPixelOffset(
+                waypoint.anchor, scale, fieldImage),
+            PathPainterUtil.metersToPixels(
+                waypoint.tolerance.toDouble(), scale, fieldImage),
+            tolerancePaint);
+      }
+
+      // Draw heading handle line
+      canvas.drawLine(
+          PathPainterUtil.pointToPixelOffset(
+              waypoint.anchor, scale, fieldImage),
+          PathPainterUtil.pointToPixelOffset(
+              waypoint.headingHandlePosition(), scale, fieldImage),
+          paint);
     }
 
     if (waypointIdx == 0) {
@@ -767,20 +781,24 @@ class PathPainter extends CustomPainter {
       paint.color = Colors.deepPurpleAccent;
     }
 
-    // draw anchor point
+  // draw anchor point (respect hidePoints pref)
+  bool hidePoints2 = prefs.getBool(PrefsKeys.hidePointsAndTolerances) ??
+    Defaults.hidePointsAndTolerances;
+  if (!hidePoints2) {
     paint.style = PaintingStyle.fill;
     canvas.drawCircle(
-        PathPainterUtil.pointToPixelOffset(waypoint.anchor, scale, fieldImage),
-        PathPainterUtil.uiPointSizeToPixels(25, scale, fieldImage),
-        paint);
+      PathPainterUtil.pointToPixelOffset(waypoint.anchor, scale, fieldImage),
+      PathPainterUtil.uiPointSizeToPixels(25, scale, fieldImage),
+      paint);
     paint.style = PaintingStyle.stroke;
     paint.color = colorScheme.surfaceContainer;
     canvas.drawCircle(
-        PathPainterUtil.pointToPixelOffset(waypoint.anchor, scale, fieldImage),
-        PathPainterUtil.uiPointSizeToPixels(25, scale, fieldImage),
-        paint);
+      PathPainterUtil.pointToPixelOffset(waypoint.anchor, scale, fieldImage),
+      PathPainterUtil.uiPointSizeToPixels(25, scale, fieldImage),
+      paint);
+  }
 
-    if (!simple) {
+    if (!simple && !hidePoints2) {
       paint.style = PaintingStyle.fill;
       if (waypointIdx == selectedWaypoint) {
         paint.color = Colors.orange;

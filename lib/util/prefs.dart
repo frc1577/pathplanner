@@ -36,6 +36,7 @@ class PrefsKeys {
   static const String wheelCOF = 'wheelCOF';
   static const String showStates = 'showStates';
   static const String showRobotDetails = 'showRobotDetails';
+  static const String hidePointsAndTolerances = 'hidePointsAndTolerances';
   static const String showGrid = 'showGrid';
   static const String telemetryUseSim = 'telemetryUseSim';
   static const String flModuleX = 'flModuleX';
@@ -88,6 +89,7 @@ class Defaults {
   static const bool showStates = false;
   static const bool showRobotDetails = false;
   static const bool showGrid = false;
+  static const bool hidePointsAndTolerances = false;
   static const bool telemetryUseSim = true;
   static const double flModuleX = 0.273;
   static const double flModuleY = 0.273;
