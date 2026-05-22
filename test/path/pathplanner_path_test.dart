@@ -30,6 +30,7 @@ void main() {
         name: 'test',
         pathDir: '/paths',
         fs: fs,
+        controllerSettings: [],
       );
 
       expect(path.name, 'test');
@@ -59,6 +60,7 @@ void main() {
         folder: null,
         idealStartingState: IdealStartingState(0.0, const Rotation2d()),
         useDefaultConstraints: false,
+        controllerSettings: [],
       );
 
       expect(path.name, 'test');
@@ -96,6 +98,7 @@ void main() {
         folder: null,
         idealStartingState: IdealStartingState(1.0, Rotation2d.fromDegrees(10)),
         useDefaultConstraints: false,
+        controllerSettings: [],
       );
 
       Map<String, dynamic> json = path.toJson();
@@ -130,6 +133,7 @@ void main() {
         folder: null,
         idealStartingState: IdealStartingState(0.0, const Rotation2d()),
         useDefaultConstraints: false,
+        controllerSettings: [],
       );
       PathPlannerPath cloned = path.duplicate('test');
 
@@ -165,6 +169,7 @@ void main() {
         folder: null,
         idealStartingState: IdealStartingState(0.0, const Rotation2d()),
         useDefaultConstraints: false,
+        controllerSettings: [],
       );
       PathPlannerPath path2 = PathPlannerPath(
         name: 'test',
@@ -188,6 +193,7 @@ void main() {
         folder: null,
         idealStartingState: IdealStartingState(0.0, const Rotation2d()),
         useDefaultConstraints: false,
+        controllerSettings: [],
       );
       PathPlannerPath path3 = PathPlannerPath(
         name: 'test2',
@@ -211,6 +217,7 @@ void main() {
         folder: null,
         idealStartingState: IdealStartingState(0.0, const Rotation2d()),
         useDefaultConstraints: false,
+        controllerSettings: [],
       );
 
       expect(path2, path1);
@@ -246,6 +253,7 @@ void main() {
       folder: null,
       idealStartingState: IdealStartingState(0.0, const Rotation2d()),
       useDefaultConstraints: false,
+      controllerSettings: [],
     );
 
     path.addWaypoint(const Translation2d(6.0, 1.0));
@@ -296,6 +304,7 @@ void main() {
       folder: null,
       idealStartingState: IdealStartingState(0.0, const Rotation2d()),
       useDefaultConstraints: false,
+      controllerSettings: [],
     );
 
     path.insertWaypointAfter(1);

@@ -40,6 +40,7 @@ class PathOptimizer {
       folder: '',
       idealStartingState: path.idealStartingState.clone(),
       useDefaultConstraints: path.useDefaultConstraints,
+      controllerSettings: path.controllerSettings, // Clone or pass the original controller settings
     );
 
     _manager ??= IsolateManager.createCustom(_optimizePathWaypoints);

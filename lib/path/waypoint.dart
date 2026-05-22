@@ -9,11 +9,13 @@ class Waypoint {
 
   Translation2d anchor;
   Rotation2d holonomicAngle;
-  num cruiseVelocity;
-  num maxAcceleration;
+  num kp;
+  num ki;
+  num kd;
   num tolerance;
   bool isLocked;
   String? linkedName;
+  String? controllerSettingId; // Reference to a controller setting
 
   bool _isAnchorDragging = false;
   bool _isHeadingDragging = false;
@@ -21,11 +23,13 @@ class Waypoint {
   Waypoint({
     required this.anchor,
     Rotation2d? holonomicAngle,
-    this.cruiseVelocity = 0.0,
-    this.maxAcceleration = 0.0,
+    this.kp = 0.0,
+    this.ki = 0.0,
+    this.kd = 0.0,
     this.tolerance = 0.1,
     this.isLocked = false,
     this.linkedName,
+    this.controllerSettingId,
   }) : holonomicAngle = holonomicAngle ?? const Rotation2d();
 
   bool get isAnchorDragging => _isAnchorDragging;
@@ -36,11 +40,13 @@ class Waypoint {
       : this(
           anchor: Translation2d.fromJson(json['anchor']),
           holonomicAngle: _holonomicAngleFromJson(json),
-          cruiseVelocity: json['cruiseVelocity'] ?? 0.0,
-          maxAcceleration: json['maxAcceleration'] ?? 0.0,
+          kp: json['kp'] ?? 0.0,
+          ki: json['ki'] ?? 0.0,
+          kd: json['kd'] ?? 0.0,
           tolerance: json['tolerance'] ?? 0.1,
           isLocked: json['isLocked'] ?? false,
           linkedName: json['linkedName'],
+          controllerSettingId: json['controllerSettingId'],
         );
 
   static Rotation2d _holonomicAngleFromJson(Map<String, dynamic> json) {
@@ -67,11 +73,13 @@ class Waypoint {
     return {
       'anchor': anchor.toJson(),
       'holonomicAngle': holonomicAngle.degrees,
-      'cruiseVelocity': cruiseVelocity,
-      'maxAcceleration': maxAcceleration,
+      'kp': kp,
+      'ki': ki,
+      'kd': kd,
       'tolerance': tolerance,
       'isLocked': isLocked,
       'linkedName': linkedName,
+      'controllerSettingId': controllerSettingId,
     };
   }
 
@@ -89,11 +97,13 @@ class Waypoint {
     return Waypoint(
       anchor: anchor,
       holonomicAngle: holonomicAngle,
-      cruiseVelocity: cruiseVelocity,
-      maxAcceleration: maxAcceleration,
+      kp: kp,
+      ki: ki,
+      kd: kd,
       tolerance: tolerance,
       isLocked: isLocked,
       linkedName: linkedName,
+      controllerSettingId: controllerSettingId,
     );
   }
 
@@ -145,12 +155,14 @@ class Waypoint {
       other.runtimeType == runtimeType &&
       other.anchor == anchor &&
       other.holonomicAngle == holonomicAngle &&
-      other.cruiseVelocity == cruiseVelocity &&
-      other.maxAcceleration == maxAcceleration &&
+      other.kp == kp &&
+      other.ki == ki &&
+      other.kd == kd &&
       other.tolerance == tolerance &&
-      other.linkedName == linkedName;
+      other.linkedName == linkedName &&
+      other.controllerSettingId == controllerSettingId;
 
   @override
-  int get hashCode => Object.hash(anchor, holonomicAngle, cruiseVelocity,
-      maxAcceleration, tolerance, linkedName);
+  int get hashCode => Object.hash(
+      anchor, holonomicAngle, kp, ki, kd, tolerance, linkedName, controllerSettingId);
 }

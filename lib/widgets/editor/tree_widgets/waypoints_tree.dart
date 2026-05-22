@@ -4,6 +4,8 @@ import 'package:pathplanner/path/event_marker.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/rotation_target.dart';
 import 'package:pathplanner/path/waypoint.dart';
+import 'package:pathplanner/services/physics_sim_service.dart';
+import 'package:pathplanner/pages/controller_settings_page.dart';
 import 'package:pathplanner/util/prefs.dart';
 import 'package:pathplanner/util/wpimath/geometry.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/item_count.dart';
@@ -262,52 +264,6 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                 child: Padding(
                   padding: const EdgeInsets.only(top: 12.0),
                   child: NumberTextField(
-                    initialValue: waypoint.cruiseVelocity,
-                    label: 'Cruise Velocity (M/S)',
-                    onSubmitted: (value) {
-                      if (value != null) {
-                        Waypoint wRef = waypoints[waypointIdx];
-                        widget.undoStack.add(_waypointChange(
-                          wRef,
-                          () => wRef.cruiseVelocity = value,
-                          (oldVal) => wRef.cruiseVelocity = oldVal.cruiseVelocity,
-                        ));
-                      }
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 12.0),
-                  child: NumberTextField(
-                    initialValue: waypoint.maxAcceleration,
-                    label: 'Max Accel (M/S²)',
-                    onSubmitted: (value) {
-                      if (value != null) {
-                        Waypoint wRef = waypoints[waypointIdx];
-                        widget.undoStack.add(_waypointChange(
-                          wRef,
-                          () => wRef.maxAcceleration = value,
-                          (oldVal) => wRef.maxAcceleration = oldVal.maxAcceleration,
-                        ));
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 12.0),
-                  child: NumberTextField(
                     initialValue: waypoint.tolerance,
                     label: 'Arrival Tolerance (M)',
                     onSubmitted: (value) {
@@ -322,6 +278,92 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                     },
                   ),
                 ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Controller Settings',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Builder(builder: (context) {
+                      // Build a deduped list of DropdownMenuItems from the path's
+                      // controller settings and make sure the current waypoint's
+                      // controllerSettingId is represented so DropdownButton's
+                      // value is always one of the items (or null).
+                      final List<DropdownMenuItem<String>> items = [];
+                      final seenIds = <String>{};
+
+                      for (final setting in widget.path.controllerSettings) {
+                        if (seenIds.contains(setting.id)) continue;
+                        seenIds.add(setting.id);
+                        items.add(DropdownMenuItem<String>(
+                          value: setting.id,
+                          child: Text(setting.name),
+                        ));
+                      }
+
+                      String? selectedValue = waypoint.controllerSettingId;
+
+                      // If the selected value is non-null but not present in the
+                      // current items, add a placeholder so DropdownButton can
+                      // render a matching item instead of asserting.
+                      if (selectedValue != null && !seenIds.contains(selectedValue)) {
+                        items.insert(
+                          0,
+                          DropdownMenuItem<String>(
+                            value: selectedValue,
+                            child: Text('Unknown Setting ($selectedValue)'),
+                          ),
+                        );
+                      }
+
+                      return DropdownButton<String>(
+                        value: selectedValue,
+                        isExpanded: true,
+                        hint: const Text('Select Controller Setting'),
+                        items: items,
+                        onChanged: (value) {
+                          setState(() {
+                            waypoint.controllerSettingId = value;
+                          });
+                          widget.onPathChanged?.call();
+                        },
+                      );
+                    }),
+                  ),
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: 'Manage Controller Settings',
+                    child: IconButton(
+                      icon: const Icon(Icons.settings_outlined),
+                      onPressed: () async {
+                        // Open controller settings page and update path.controllerSettings when changed
+                        final updated = await Navigator.of(context).push<List<ControllerSetting>>(
+                          MaterialPageRoute(builder: (context) => ControllerSettingsPage(
+                            controllerSettings: widget.path.controllerSettings,
+                            onChanged: (newSettings) {},
+                          )),
+                        );
+
+                        if (updated != null) {
+                          setState(() {
+                            widget.path.controllerSettings = List.of(updated);
+                          });
+                          widget.onPathChanged?.call();
+                        }
+                      },
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

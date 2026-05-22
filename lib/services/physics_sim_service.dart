@@ -106,8 +106,10 @@ class PhysicsSimService {
       final Translation2d direction =
           Translation2d(segmentVector.x / segmentLength, segmentVector.y / segmentLength);
 
-      final num cruiseVelocity = max(0.0, start.cruiseVelocity);
-      final num maxAccel = max(1e-6, start.maxAcceleration);
+  final ControllerSetting? startSettings = _getControllerSettingsById(path, start.controllerSettingId);
+
+      final num cruiseVelocity = max(0.0, startSettings?.cruiseVelocity ?? 0.0);
+      final num maxAccel = max(1e-6, startSettings?.maxAcceleration ?? 1e-6);
       final num tolerance = max(0.0, end.tolerance);
 
       final Rotation2d targetHeading = end.holonomicAngle;
@@ -174,39 +176,82 @@ class PhysicsSimService {
     num time = 0.0;
     num currentVelocity = 0.0;
     num currentAngularVelocity = 0.0;
-    Rotation2d currentHeading = path.waypoints.first.holonomicAngle;
-    Translation2d currentPos = path.waypoints.first.anchor;
+    final Waypoint first = path.waypoints.first;
+    Rotation2d currentHeading = first.holonomicAngle;
+    Translation2d currentPos = first.anchor;
 
     ProfiledPIDController rotationalController = ProfiledPIDController(
-      5.0, 0.0, 0.0, Constraints(3.0, maxAcceleration),
+      5, 0, 0, Constraints(3.0, maxAcceleration),
     );
+
+  // Fetch the controller settings for the first waypoint (prefer path-registered settings)
+  final ControllerSetting? controllerSettings = _getControllerSettingsById(path, first.controllerSettingId);
+
     ProfiledPIDController xController = ProfiledPIDController(
-      5.0, 0.0, 0.0, Constraints(path.waypoints.first.cruiseVelocity.toDouble(), path.waypoints.first.maxAcceleration.toDouble()),
+      controllerSettings?.kp ?? first.kp.toDouble(),
+      controllerSettings?.ki ?? first.ki.toDouble(),
+      controllerSettings?.kd ?? first.kd.toDouble(),
+      Constraints(
+        controllerSettings?.cruiseVelocity ?? 0.0,
+        controllerSettings?.maxAcceleration ?? 1e-6,
+      ),
     );
     ProfiledPIDController yController = ProfiledPIDController(
-      5.0, 0.0, 0.0, Constraints(path.waypoints.first.cruiseVelocity.toDouble(), path.waypoints.first.maxAcceleration.toDouble()),
+      controllerSettings?.kp ?? first.kp.toDouble(),
+      controllerSettings?.ki ?? first.ki.toDouble(),
+      controllerSettings?.kd ?? first.kd.toDouble(),
+      Constraints(
+        controllerSettings?.cruiseVelocity ?? 0.0,
+        controllerSettings?.maxAcceleration ?? 1e-6,
+      ),
     );
-    xController.reset(
-    State(path.waypoints.first.anchor.x.toDouble(), 0.0));
 
-    yController.reset(
-        State(path.waypoints.first.anchor.y.toDouble(), 0.0));
+    xController.reset(State(first.anchor.x.toDouble(), 0.0));
+    yController.reset(State(first.anchor.y.toDouble(), 0.0));
 
     rotationalController.reset(
-        State(path.waypoints.first.holonomicAngle.radians.toDouble(), 0.0));
+        State(first.holonomicAngle.radians.toDouble(), 0.0));
 
     // Set the initial goal of the controllers to the start point (first waypoint)
-    xController.setGoal(State(path.waypoints.first.anchor.x.toDouble(), 0.0));
-    yController.setGoal(State(path.waypoints.first.anchor.y.toDouble(), 0.0));
-    rotationalController.setGoal(State(path.waypoints.first.holonomicAngle.radians.toDouble(), 0.0));
+    xController.setGoal(State(first.anchor.x.toDouble(), 0.0));
+    yController.setGoal(State(first.anchor.y.toDouble(), 0.0));
 
     print('Starting generateSimulatedPath with ${path.waypoints.length} waypoints');
 
     for (int i = 0; i < path.waypoints.length - 1; i++) {
       final Waypoint end = path.waypoints[i + 1];
 
-      xController.setConstraints(Constraints(end.cruiseVelocity.toDouble(), end.maxAcceleration.toDouble()));
-      yController.setConstraints(Constraints(end.cruiseVelocity.toDouble(), end.maxAcceleration.toDouble()));
+  // Fetch the controller settings dynamically for the current waypoint (prefer path-registered settings)
+  final ControllerSetting? currentSettings = _getControllerSettingsById(path, end.controllerSettingId);
+
+      xController.setPID(
+        currentSettings?.kp ?? end.kp.toDouble(),
+        currentSettings?.ki ?? end.ki.toDouble(),
+        currentSettings?.kd ?? end.kd.toDouble(),
+      );
+      yController.setPID(
+        currentSettings?.kp ?? end.kp.toDouble(),
+        currentSettings?.ki ?? end.ki.toDouble(),
+        currentSettings?.kd ?? end.kd.toDouble(),
+      );
+      rotationalController.setPID(
+        currentSettings?.angularKp ?? 5.0,
+        currentSettings?.angularKi ?? 0.0,
+        currentSettings?.angularKd ?? 0.0,
+      );
+
+      xController.setConstraints(Constraints(
+        currentSettings?.cruiseVelocity ?? 0.0,
+        currentSettings?.maxAcceleration ?? 1e-6,
+      ));
+      yController.setConstraints(Constraints(
+        currentSettings?.cruiseVelocity ?? 0.0,
+        currentSettings?.maxAcceleration ?? 1e-6,
+      ));
+      rotationalController.setConstraints(Constraints(
+        currentSettings?.angularMaxVelocity ?? 3.0,
+        currentSettings?.angularMaxAcceleration ?? 2.0,
+      ));
 
       xController.setGoal(State(end.anchor.x.toDouble(), 0.0));
       yController.setGoal(State(end.anchor.y.toDouble(), 0.0));
@@ -221,15 +266,15 @@ class PhysicsSimService {
         final double targetLinearVelocity =
             sqrt(pow(xOutput, 2) + pow(yOutput, 2)).toDouble();
 
-        final double linearDelta =
-            (targetLinearVelocity - currentVelocity.toDouble())
-                .clamp(-xController.getConstraints().maxVelocity * dt, xController.getConstraints().maxAcceleration * dt); //would also work with y controller.
+    final double linearDelta =
+      (targetLinearVelocity - currentVelocity.toDouble())
+        .clamp(-xController.getConstraints().maxAcceleration * dt, xController.getConstraints().maxAcceleration * dt);
 
         currentVelocity += linearDelta;
 
-        final double angularDelta =
-            (rotationalOutput - currentAngularVelocity.toDouble())
-                .clamp(-rotationalController.getConstraints().maxVelocity * dt, rotationalController.getConstraints().maxAcceleration * dt);
+    final double angularDelta =
+      (rotationalOutput - currentAngularVelocity.toDouble())
+        .clamp(-rotationalController.getConstraints().maxAcceleration * dt, rotationalController.getConstraints().maxAcceleration * dt);
 
         currentAngularVelocity += angularDelta;
         currentPos += Translation2d(xOutput * dt, yOutput * dt);
@@ -244,8 +289,6 @@ class PhysicsSimService {
           velocity: currentVelocity,
           angularVelocity: currentAngularVelocity,
         ));
-
-        print('Current position: $currentPos, heading: $currentHeading, velocity: $currentVelocity');
 
         if (simulatedPath.length > 10000) {
           print('Simulation path too long, breaking early');
@@ -280,4 +323,82 @@ class PhysicsSimService {
     }
     return angle;
   }
+
+  static ControllerSetting? _getControllerSettingsById(PathPlannerPath path, String? id) {
+    if (id == null) return null;
+
+    // Prefer any user-registered controller settings stored on the path
+    try {
+      for (final s in path.controllerSettings) {
+        if (s.id == id) return s;
+      }
+    } catch (_) {
+      // If path.controllerSettings is not available for some reason, fall back to defaults below
+    }
+
+    // Fallback to built-in defaults (maintain previous behavior)
+    final settings = [
+      ControllerSetting(
+        id: '1',
+        name: 'Default Setting',
+        kp: 1.0,
+        ki: 0.0,
+        kd: 0.0,
+        cruiseVelocity: 2.0,
+        maxAcceleration: 1.0,
+        angularKp: 5.0,
+        angularKi: 0.0,
+        angularKd: 0.0,
+        angularMaxVelocity: 3.0,
+        angularMaxAcceleration: 2.0,
+      ),
+      ControllerSetting(
+        id: '2',
+        name: 'Aggressive Setting',
+        kp: 2.0,
+        ki: 0.5,
+        kd: 0.1,
+        cruiseVelocity: 3.0,
+        maxAcceleration: 2.0,
+        angularKp: 6.0,
+        angularKi: 0.1,
+        angularKd: 0.2,
+        angularMaxVelocity: 4.0,
+        angularMaxAcceleration: 3.0,
+      ),
+    ];
+
+    return settings.firstWhere((setting) => setting.id == id,
+        orElse: () => ControllerSetting(id: 'null', name: 'null', kp: 0.0, ki: 0.0, kd: 0.0, cruiseVelocity: 0, maxAcceleration: 0.0, angularKp: 0.0, angularKi: 0.0, angularKd: 0.0, angularMaxVelocity: 0.0, angularMaxAcceleration: 0.0));
+  }
+}
+
+class ControllerSetting {
+  final String id;
+  final String name;
+  final double kp;
+  final double ki;
+  final double kd;
+  final double cruiseVelocity;
+  final double maxAcceleration;
+  final double angularKp;
+  final double angularKi;
+  final double angularKd;
+  final double angularMaxVelocity;
+  final double angularMaxAcceleration;
+
+  ControllerSetting({
+    required this.id,
+    required this.name,
+    required this.kp,
+    required this.ki,
+    required this.kd,
+    required this.cruiseVelocity,
+    required this.maxAcceleration,
+    required this.angularKp,
+    required this.angularKi,
+    required this.angularKd,
+    required this.angularMaxVelocity,
+    required this.angularMaxAcceleration,
+  });
 }
