@@ -8,6 +8,7 @@ import 'package:pathplanner/path/path_point.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/services/log.dart';
+import 'package:pathplanner/services/physics_sim_service.dart';
 import 'package:pathplanner/trajectory/config.dart';
 import 'package:pathplanner/trajectory/trajectory.dart';
 import 'package:pathplanner/util/wpimath/geometry.dart';
@@ -40,7 +41,7 @@ class PathOptimizer {
       folder: '',
       idealStartingState: path.idealStartingState.clone(),
       useDefaultConstraints: path.useDefaultConstraints,
-      controllerSettings: path.controllerSettings, // Clone or pass the original controller settings
+      controllerSettings: List.of(ControllerSettingsStore.settings),
     );
 
     _manager ??= IsolateManager.createCustom(_optimizePathWaypoints);

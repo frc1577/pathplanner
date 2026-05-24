@@ -105,6 +105,7 @@ class PathPlannerPath {
     this.name = 'New Path',
     this.folder,
     PathConstraints? constraints,
+    List<ControllerSetting>? controllerSettings,
   })  : waypoints = [],
         pathPoints = [],
         globalConstraints = constraints ?? PathConstraints(),
@@ -116,7 +117,8 @@ class PathPlannerPath {
         reversed = false,
         idealStartingState = IdealStartingState(0, const Rotation2d()),
         useDefaultConstraints = true,
-        controllerSettings = [] {
+        controllerSettings =
+            controllerSettings ?? List.of(ControllerSettingsStore.settings) {
     waypoints.addAll([
       Waypoint(
         anchor: const Translation2d(2.0, 7.0),
@@ -163,63 +165,7 @@ class PathPlannerPath {
           idealStartingState:
               IdealStartingState.fromJson(json['idealStartingState'] ?? {}),
       useDefaultConstraints: json['useDefaultConstraints'] ?? false,
-      controllerSettings: [
-      for (final s in json['controllerSettings'] ?? [])
-        ControllerSetting(
-        id: s['id']?.toString() ?? '',
-        name: s['name']?.toString() ?? '',
-        kp: s['kp'] == null
-          ? 0.0
-          : (s['kp'] is num
-            ? (s['kp'] as num).toDouble()
-            : double.tryParse(s['kp'].toString()) ?? 0.0),
-        ki: s['ki'] == null
-          ? 0.0
-          : (s['ki'] is num
-            ? (s['ki'] as num).toDouble()
-            : double.tryParse(s['ki'].toString()) ?? 0.0),
-        kd: s['kd'] == null
-          ? 0.0
-          : (s['kd'] is num
-            ? (s['kd'] as num).toDouble()
-            : double.tryParse(s['kd'].toString()) ?? 0.0),
-        cruiseVelocity: s['cruiseVelocity'] == null
-          ? 0.0
-          : (s['cruiseVelocity'] is num
-            ? (s['cruiseVelocity'] as num).toDouble()
-            : double.tryParse(s['cruiseVelocity'].toString()) ?? 0.0),
-        maxAcceleration: s['maxAcceleration'] == null
-          ? 0.0
-          : (s['maxAcceleration'] is num
-            ? (s['maxAcceleration'] as num).toDouble()
-            : double.tryParse(s['maxAcceleration'].toString()) ?? 0.0),
-        angularKp: s['angularKp'] == null
-          ? 0.0
-          : (s['angularKp'] is num
-            ? (s['angularKp'] as num).toDouble()
-            : double.tryParse(s['angularKp'].toString()) ?? 0.0),
-        angularKi: s['angularKi'] == null
-          ? 0.0
-          : (s['angularKi'] is num
-            ? (s['angularKi'] as num).toDouble()
-            : double.tryParse(s['angularKi'].toString()) ?? 0.0),
-        angularKd: s['angularKd'] == null
-          ? 0.0
-          : (s['angularKd'] is num
-            ? (s['angularKd'] as num).toDouble()
-            : double.tryParse(s['angularKd'].toString()) ?? 0.0),
-        angularMaxVelocity: s['angularMaxVelocity'] == null
-          ? 0.0
-          : (s['angularMaxVelocity'] is num
-            ? (s['angularMaxVelocity'] as num).toDouble()
-            : double.tryParse(s['angularMaxVelocity'].toString()) ?? 0.0),
-        angularMaxAcceleration: s['angularMaxAcceleration'] == null
-          ? 0.0
-          : (s['angularMaxAcceleration'] is num
-            ? (s['angularMaxAcceleration'] as num).toDouble()
-            : double.tryParse(s['angularMaxAcceleration'].toString()) ?? 0.0),
-        ),
-      ],
+      controllerSettings: List.of(ControllerSettingsStore.settings),
         );
 
   void generateAndSavePath() {
@@ -317,21 +263,7 @@ class PathPlannerPath {
       'idealStartingState': idealStartingState.toJson(),
       'useDefaultConstraints': useDefaultConstraints,
       'controllerSettings': [
-        for (final s in controllerSettings)
-          {
-            'id': s.id,
-            'name': s.name,
-            'kp': s.kp,
-            'ki': s.ki,
-            'kd': s.kd,
-            'cruiseVelocity': s.cruiseVelocity,
-            'maxAcceleration': s.maxAcceleration,
-            'angularKp': s.angularKp,
-            'angularKi': s.angularKi,
-            'angularKd': s.angularKd,
-            'angularMaxVelocity': s.angularMaxVelocity,
-            'angularMaxAcceleration': s.angularMaxAcceleration,
-          },
+        for (final s in ControllerSettingsStore.settings) s.toJson(),
       ],
     };
   }

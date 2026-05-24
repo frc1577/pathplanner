@@ -13,6 +13,7 @@ import 'package:pathplanner/pages/project/project_page.dart';
 import 'package:pathplanner/pages/telemetry_page.dart';
 import 'package:pathplanner/pages/welcome_page.dart';
 import 'package:pathplanner/services/log.dart';
+import 'package:pathplanner/services/physics_sim_service.dart';
 import 'package:pathplanner/services/pplib_telemetry.dart';
 import 'package:pathplanner/services/update_checker.dart';
 import 'package:pathplanner/util/prefs.dart';
@@ -436,6 +437,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   hotReload: _hotReload,
                   onFoldersChanged: () =>
                       _saveProjectSettingsToFile(_projectDir!),
+          onProjectSettingsChanged: () =>
+            _saveProjectSettingsToFile(_projectDir!),
                   simulatePath: true,
                   watchChorDir: true,
                 ),
@@ -575,6 +578,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ?.map((e) => e as String)
                 .toList() ??
             Defaults.robotFeatures);
+  ControllerSettingsStore.loadFromJson(json[PrefsKeys.controllerSettings]);
   }
 
   void _setPrefDoubleFromJSON(
@@ -667,6 +671,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       PrefsKeys.robotFeatures:
           widget.prefs.getStringList(PrefsKeys.robotFeatures) ??
               Defaults.robotFeatures,
+    PrefsKeys.controllerSettings: ControllerSettingsStore.toJson(),
     };
 
     settingsFile.writeAsString(encoder.convert(settings)).then((_) {

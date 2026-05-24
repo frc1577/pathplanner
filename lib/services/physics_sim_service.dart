@@ -327,17 +327,48 @@ class PhysicsSimService {
   static ControllerSetting? _getControllerSettingsById(PathPlannerPath path, String? id) {
     if (id == null) return null;
 
-    // Prefer any user-registered controller settings stored on the path
-    try {
-      for (final s in path.controllerSettings) {
-        if (s.id == id) return s;
-      }
-    } catch (_) {
-      // If path.controllerSettings is not available for some reason, fall back to defaults below
+    for (final s in ControllerSettingsStore.settings) {
+      if (s.id == id) return s;
     }
 
-    // Fallback to built-in defaults (maintain previous behavior)
-    final settings = [
+    return null;
+  }
+}
+
+class ControllerSettingsStore {
+  static List<ControllerSetting> _settings = _defaultSettings();
+
+  static List<ControllerSetting> get settings => List.unmodifiable(_settings);
+
+  static void setSettings(List<ControllerSetting> settings) {
+    _settings = List.of(settings);
+  }
+
+  static void loadFromJson(dynamic json) {
+    if (json is List) {
+      final parsed = <ControllerSetting>[];
+      for (final entry in json) {
+        if (entry is Map<String, dynamic>) {
+          parsed.add(ControllerSetting.fromJson(entry));
+        } else if (entry is Map) {
+          parsed.add(ControllerSetting.fromJson(
+              entry.map((key, value) => MapEntry(key.toString(), value))));
+        }
+      }
+
+      _settings = parsed;
+      return;
+    }
+
+    _settings = _defaultSettings();
+  }
+
+  static List<Map<String, dynamic>> toJson() {
+    return [for (final setting in _settings) setting.toJson()];
+  }
+
+  static List<ControllerSetting> _defaultSettings() {
+    return [
       ControllerSetting(
         id: '1',
         name: 'Default Setting',
@@ -367,9 +398,6 @@ class PhysicsSimService {
         angularMaxAcceleration: 3.0,
       ),
     ];
-
-    return settings.firstWhere((setting) => setting.id == id,
-        orElse: () => ControllerSetting(id: 'null', name: 'null', kp: 0.0, ki: 0.0, kd: 0.0, cruiseVelocity: 0, maxAcceleration: 0.0, angularKp: 0.0, angularKi: 0.0, angularKd: 0.0, angularMaxVelocity: 0.0, angularMaxAcceleration: 0.0));
   }
 }
 
@@ -401,4 +429,44 @@ class ControllerSetting {
     required this.angularMaxVelocity,
     required this.angularMaxAcceleration,
   });
+
+  factory ControllerSetting.fromJson(Map<String, dynamic> json) {
+    double readDouble(dynamic value, double defaultValue) {
+      if (value == null) return defaultValue;
+      if (value is num) return value.toDouble();
+      return double.tryParse(value.toString()) ?? defaultValue;
+    }
+
+    return ControllerSetting(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      kp: readDouble(json['kp'], 0.0),
+      ki: readDouble(json['ki'], 0.0),
+      kd: readDouble(json['kd'], 0.0),
+      cruiseVelocity: readDouble(json['cruiseVelocity'], 0.0),
+      maxAcceleration: readDouble(json['maxAcceleration'], 0.0),
+      angularKp: readDouble(json['angularKp'], 0.0),
+      angularKi: readDouble(json['angularKi'], 0.0),
+      angularKd: readDouble(json['angularKd'], 0.0),
+      angularMaxVelocity: readDouble(json['angularMaxVelocity'], 0.0),
+      angularMaxAcceleration: readDouble(json['angularMaxAcceleration'], 0.0),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'kp': kp,
+      'ki': ki,
+      'kd': kd,
+      'cruiseVelocity': cruiseVelocity,
+      'maxAcceleration': maxAcceleration,
+      'angularKp': angularKp,
+      'angularKi': angularKi,
+      'angularKd': angularKd,
+      'angularMaxVelocity': angularMaxVelocity,
+      'angularMaxAcceleration': angularMaxAcceleration,
+    };
+  }
 }

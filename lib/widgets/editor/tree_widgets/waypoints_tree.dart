@@ -19,6 +19,7 @@ class WaypointsTree extends StatefulWidget {
   final ValueChanged<int?>? onWaypointSelected;
   final ValueChanged<int>? onWaypointDeleted;
   final VoidCallback? onPathChanged;
+  final VoidCallback? onControllerSettingsChanged;
   final WaypointsTreeController? controller;
   final int? initialSelectedWaypoint;
   final ChangeStack undoStack;
@@ -30,6 +31,7 @@ class WaypointsTree extends StatefulWidget {
     this.onWaypointHovered,
     this.onWaypointSelected,
     this.onPathChanged,
+  this.onControllerSettingsChanged,
     this.controller,
     this.initialSelectedWaypoint,
     this.onWaypointDeleted,
@@ -295,14 +297,15 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                 children: [
                   Expanded(
                     child: Builder(builder: (context) {
-                      // Build a deduped list of DropdownMenuItems from the path's
+                      // Build a deduped list of DropdownMenuItems from the global
                       // controller settings and make sure the current waypoint's
                       // controllerSettingId is represented so DropdownButton's
                       // value is always one of the items (or null).
                       final List<DropdownMenuItem<String>> items = [];
                       final seenIds = <String>{};
 
-                      for (final setting in widget.path.controllerSettings) {
+                      for (final setting
+                          in ControllerSettingsStore.settings) {
                         if (seenIds.contains(setting.id)) continue;
                         seenIds.add(setting.id);
                         items.add(DropdownMenuItem<String>(
@@ -347,17 +350,22 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                       icon: const Icon(Icons.settings_outlined),
                       onPressed: () async {
                         // Open controller settings page and update path.controllerSettings when changed
-                        final updated = await Navigator.of(context).push<List<ControllerSetting>>(
-                          MaterialPageRoute(builder: (context) => ControllerSettingsPage(
-                            controllerSettings: widget.path.controllerSettings,
-                            onChanged: (newSettings) {},
-                          )),
+                        final updated = await Navigator.of(context)
+                            .push<List<ControllerSetting>>(
+                          MaterialPageRoute(
+                            builder: (context) => ControllerSettingsPage(
+                              controllerSettings:
+                                  ControllerSettingsStore.settings,
+                              onChanged: (newSettings) {},
+                            ),
+                          ),
                         );
 
                         if (updated != null) {
                           setState(() {
-                            widget.path.controllerSettings = List.of(updated);
+                            ControllerSettingsStore.setSettings(updated);
                           });
+                          widget.onControllerSettingsChanged?.call();
                           widget.onPathChanged?.call();
                         }
                       },

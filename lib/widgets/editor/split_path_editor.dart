@@ -35,6 +35,7 @@ class SplitPathEditor extends StatefulWidget {
   final bool hotReload;
   final bool simulate;
   final VoidCallback? onPathChanged;
+  final VoidCallback? onControllerSettingsChanged;
 
   const SplitPathEditor({
     required this.prefs,
@@ -45,6 +46,7 @@ class SplitPathEditor extends StatefulWidget {
     this.hotReload = false,
     this.simulate = false,
     this.onPathChanged,
+    this.onControllerSettingsChanged,
     super.key,
   });
 
@@ -589,6 +591,12 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                       }
 
                       widget.onPathChanged?.call();
+                    },
+                    onControllerSettingsChanged: () {
+                      setState(() {
+                        _simulatePath();
+                      });
+                      widget.onControllerSettingsChanged?.call();
                     },
                     onWaypointDeleted: (waypointIdx) {
                       widget.undoStack.add(Change(

@@ -42,6 +42,7 @@ class ProjectPage extends StatefulWidget {
   final PPLibTelemetry? telemetry;
   final bool hotReload;
   final VoidCallback? onFoldersChanged;
+  final VoidCallback? onProjectSettingsChanged;
   final bool simulatePath;
   final bool watchChorDir;
 
@@ -60,6 +61,7 @@ class ProjectPage extends StatefulWidget {
     this.telemetry,
     this.hotReload = false,
     this.onFoldersChanged,
+    this.onProjectSettingsChanged,
     this.simulatePath = false,
     this.watchChorDir = false,
   });
@@ -1019,6 +1021,7 @@ class _ProjectPageState extends State<ProjectPage> {
           telemetry: widget.telemetry,
           hotReload: widget.hotReload,
           simulatePath: widget.simulatePath,
+          onControllerSettingsChanged: widget.onProjectSettingsChanged,
           onPathChanged: () {
             // Update the linked rotation for the start/end states
             if (path.waypoints.first.linkedName != null) {
