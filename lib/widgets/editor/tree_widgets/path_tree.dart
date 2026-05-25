@@ -12,6 +12,7 @@ import 'package:pathplanner/widgets/editor/tree_widgets/point_towards_zones_tree
 import 'package:pathplanner/widgets/editor/tree_widgets/rotation_targets_tree.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/waypoints_tree.dart';
 import 'package:pathplanner/services/save_service.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:undo/undo.dart';
 
@@ -75,7 +76,7 @@ class PathTree extends StatefulWidget {
     this.runtimeDisplay,
     this.pathRuntime,
     this.onPathChangedNoSim,
-  this.onControllerSettingsChanged,
+    this.onControllerSettingsChanged,
     required this.holonomicMode,
     required this.defaultConstraints,
     required this.prefs,
@@ -159,8 +160,85 @@ class _PathTreeState extends State<PathTree> {
                 message: 'Export to Custom Format',
                 waitDuration: const Duration(milliseconds: 500),
                 child: IconButton(
-                  onPressed: () =>
-                      SaveService.exportToCustomFormat(widget.path.waypoints),
+                  onPressed: () async {
+                    try {
+                      final export =
+                          await SaveService.exportToCustomFormat(
+                        widget.path.waypoints,
+                      );
+
+                      if (!context.mounted) return;
+
+                      showDialog(
+                        context: context,
+                        builder: (_) => Dialog(
+                          insetPadding: const EdgeInsets.all(16),
+                          child: SizedBox(
+                            width: 1100,
+                            height: 750,
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'Generated Java Code',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.close),
+                                        onPressed: () =>
+                                            Navigator.pop(context),
+                                      )
+                                    ],
+                                  ),
+                                ),
+                                const Divider(height: 1),
+
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      // Controllers (smaller)
+                                      Flexible(
+                                        flex: 2,
+                                        child: _buildCodePanel(
+                                          title: 'Controllers',
+                                          text: _extractControllers(export),
+                                        ),
+                                      ),
+
+                                      const VerticalDivider(width: 1),
+
+                                      // Waypoints (larger)
+                                      Expanded(
+                                        flex: 5,
+                                        child: _buildCodePanel(
+                                          title: 'Waypoints',
+                                          text: _extractWaypoints(export),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Export failed: $e'),
+                        ),
+                      );
+                    }
+                  },
                   icon: const Icon(Icons.file_upload_outlined),
                 ),
               ),
@@ -179,170 +257,231 @@ class _PathTreeState extends State<PathTree> {
     );
   }
 
-  Widget _buildInfoCard({required String value}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color.fromARGB(36, 0, 0, 0),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        value,
-        style: const TextStyle(
-          fontWeight: FontWeight.normal,
-          color: Colors.white,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWaypointsTree() {
-    return WaypointsTree(
-      key: ValueKey('waypoints${widget.path.waypoints.length}'),
-      onWaypointDeleted: widget.onWaypointDeleted,
-      initialSelectedWaypoint: widget.initiallySelectedWaypoint,
-      controller: widget.waypointsTreeController,
-      path: widget.path,
-      onWaypointHovered: widget.onWaypointHovered,
-      onWaypointSelected: widget.onWaypointSelected,
-      onPathChanged: widget.onPathChanged,
-      onControllerSettingsChanged: widget.onControllerSettingsChanged,
-      undoStack: widget.undoStack,
-      holonomicMode: widget.holonomicMode,
-    );
-  }
-
-  Widget _buildGlobalConstraintsTree() {
-    return GlobalConstraintsTree(
-      path: widget.path,
-      onPathChanged: widget.onPathChanged,
-      undoStack: widget.undoStack,
-      defaultConstraints: widget.defaultConstraints,
-    );
-  }
-
-  Widget _buildIdealStartingStateTree() {
-    return IdealStartingStateTree(
-      path: widget.path,
-      undoStack: widget.undoStack,
-      holonomicMode: widget.holonomicMode,
-      onPathChanged: widget.onPathChanged,
-    );
-  }
-
-  Widget _buildGoalEndStateTree() {
-    return GoalEndStateTree(
-      path: widget.path,
-      onPathChanged: widget.onPathChanged,
-      undoStack: widget.undoStack,
-      holonomicMode: widget.holonomicMode,
-    );
-  }
-
-  Widget _buildRotationTargetsTree() {
-    return RotationTargetsTree(
-      key: ValueKey('rotations${widget.path.rotationTargets.length}'),
-      path: widget.path,
-      onPathChanged: widget.onPathChanged,
-      onPathChangedNoSim: widget.onPathChangedNoSim,
-      onTargetHovered: widget.onRotTargetHovered,
-      onTargetSelected: widget.onRotTargetSelected,
-      initiallySelectedTarget: widget.initiallySelectedRotTarget,
-      undoStack: widget.undoStack,
-    );
-  }
-
-  Widget _buildPointZonesTree() {
-    return PointTowardsZonesTree(
-      key: ValueKey('pointZones${widget.path.pointTowardsZones.length}'),
-      path: widget.path,
-      onPathChanged: widget.onPathChanged,
-      onPathChangedNoSim: widget.onPathChangedNoSim,
-      onZoneHovered: widget.onPointZoneHovered,
-      onZoneSelected: widget.onPointZoneSelected,
-      initiallySelectedZone: widget.initiallySelectedPointZone,
-      undoStack: widget.undoStack,
-    );
-  }
-
-  Widget _buildEventMarkersTree() {
-    return EventMarkersTree(
-      key: ValueKey('markers${widget.path.eventMarkers.length}'),
-      path: widget.path,
-      onPathChangedNoSim: widget.onPathChangedNoSim,
-      onMarkerHovered: widget.onMarkerHovered,
-      onMarkerSelected: widget.onMarkerSelected,
-      initiallySelectedMarker: widget.initiallySelectedMarker,
-      undoStack: widget.undoStack,
-    );
-  }
-
-  Widget _buildConstraintZonesTree() {
-    return ConstraintZonesTree(
-      key: ValueKey('zones${widget.path.constraintZones.length}'),
-      path: widget.path,
-      onPathChanged: widget.onPathChanged,
-      onPathChangedNoSim: widget.onPathChangedNoSim,
-      onZoneHovered: widget.onZoneHovered,
-      onZoneSelected: widget.onZoneSelected,
-      initiallySelectedZone: widget.initiallySelectedZone,
-      undoStack: widget.undoStack,
-    );
-  }
-
-  Widget _buildReversedButton() {
-    return Tooltip(
-      message: widget.path.reversed ? 'Unreverse Path' : 'Reverse Path',
-      child: GestureDetector(
-        onTap: () {
-          bool newReversed = !widget.path.reversed;
-
-          widget.undoStack.add(Change(
-            widget.path.reversed,
-            () {
-              widget.path.reversed = newReversed;
-              widget.onPathChanged?.call();
-            },
-            (oldValue) {
-              widget.path.reversed = oldValue;
-              widget.onPathChanged?.call();
-            },
-          ));
-        },
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: const Color.fromARGB(36, 0, 0, 0),
-            borderRadius: BorderRadius.circular(4),
+  Widget _buildCodePanel({
+    required String title,
+    required String text,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          child: Icon(
-            widget.path.reversed
-                ? Icons.arrow_forward_rounded
-                : Icons.arrow_back_rounded,
+          const SizedBox(height: 8),
+          Expanded(
+            child: SingleChildScrollView(
+              child: SelectableText(
+                text,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _extractControllers(String code) {
+    final lines = code.split('\n');
+    final buffer = StringBuffer();
+    bool inControllers = false;
+
+    for (final line in lines) {
+      if (line.contains('ProfiledPIDSettings')) {
+        inControllers = true;
+      }
+
+      if (line.contains('static ArrayList<Waypoint>')) {
+        inControllers = false;
+      }
+
+      if (inControllers) {
+        buffer.writeln(line);
+      }
+    }
+
+    return buffer.toString();
+  }
+
+  String _extractWaypoints(String code) {
+    final lines = code.split('\n');
+    final buffer = StringBuffer();
+    bool inWaypoints = false;
+
+    for (final line in lines) {
+      if (line.contains('static ArrayList<Waypoint>')) {
+        inWaypoints = true;
+      }
+
+      if (line.contains('}};') && inWaypoints) {
+        buffer.writeln(line);
+        break;
+      }
+
+      if (inWaypoints) {
+        buffer.writeln(line);
+      }
+    }
+
+    return buffer.toString();
+  }
+
+  Widget _buildInfoCard({required String value}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color.fromARGB(36, 0, 0, 0),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          value,
+          style: const TextStyle(
+            fontWeight: FontWeight.normal,
             color: Colors.white,
-            size: 15,
+            fontSize: 12,
           ),
         ),
-      ),
-    );
-  }
+      );
+
+  Widget _buildWaypointsTree() => WaypointsTree(
+        key: ValueKey('waypoints${widget.path.waypoints.length}'),
+        onWaypointDeleted: widget.onWaypointDeleted,
+        initialSelectedWaypoint: widget.initiallySelectedWaypoint,
+        controller: widget.waypointsTreeController,
+        path: widget.path,
+        onWaypointHovered: widget.onWaypointHovered,
+        onWaypointSelected: widget.onWaypointSelected,
+        onPathChanged: widget.onPathChanged,
+        onControllerSettingsChanged: widget.onControllerSettingsChanged,
+        undoStack: widget.undoStack,
+        holonomicMode: widget.holonomicMode,
+      );
+
+  Widget _buildGlobalConstraintsTree() => GlobalConstraintsTree(
+        path: widget.path,
+        onPathChanged: widget.onPathChanged,
+        undoStack: widget.undoStack,
+        defaultConstraints: widget.defaultConstraints,
+      );
+
+  Widget _buildIdealStartingStateTree() => IdealStartingStateTree(
+        path: widget.path,
+        undoStack: widget.undoStack,
+        holonomicMode: widget.holonomicMode,
+        onPathChanged: widget.onPathChanged,
+      );
+
+  Widget _buildGoalEndStateTree() => GoalEndStateTree(
+        path: widget.path,
+        onPathChanged: widget.onPathChanged,
+        undoStack: widget.undoStack,
+        holonomicMode: widget.holonomicMode,
+      );
+
+  Widget _buildRotationTargetsTree() => RotationTargetsTree(
+        key: ValueKey('rotations${widget.path.rotationTargets.length}'),
+        path: widget.path,
+        onPathChanged: widget.onPathChanged,
+        onPathChangedNoSim: widget.onPathChangedNoSim,
+        onTargetHovered: widget.onRotTargetHovered,
+        onTargetSelected: widget.onRotTargetSelected,
+        initiallySelectedTarget: widget.initiallySelectedRotTarget,
+        undoStack: widget.undoStack,
+      );
+
+  Widget _buildPointZonesTree() => PointTowardsZonesTree(
+        key: ValueKey('pointZones${widget.path.pointTowardsZones.length}'),
+        path: widget.path,
+        onPathChanged: widget.onPathChanged,
+        onPathChangedNoSim: widget.onPathChangedNoSim,
+        onZoneHovered: widget.onPointZoneHovered,
+        onZoneSelected: widget.onPointZoneSelected,
+        initiallySelectedZone: widget.initiallySelectedPointZone,
+        undoStack: widget.undoStack,
+      );
+
+  Widget _buildEventMarkersTree() => EventMarkersTree(
+        key: ValueKey('markers${widget.path.eventMarkers.length}'),
+        path: widget.path,
+        onPathChangedNoSim: widget.onPathChangedNoSim,
+        onMarkerHovered: widget.onMarkerHovered,
+        onMarkerSelected: widget.onMarkerSelected,
+        initiallySelectedMarker: widget.initiallySelectedMarker,
+        undoStack: widget.undoStack,
+      );
+
+  Widget _buildConstraintZonesTree() => ConstraintZonesTree(
+        key: ValueKey('zones${widget.path.constraintZones.length}'),
+        path: widget.path,
+        onPathChanged: widget.onPathChanged,
+        onPathChangedNoSim: widget.onPathChangedNoSim,
+        onZoneHovered: widget.onZoneHovered,
+        onZoneSelected: widget.onZoneSelected,
+        initiallySelectedZone: widget.initiallySelectedZone,
+        undoStack: widget.undoStack,
+      );
+
+  Widget _buildReversedButton() => Tooltip(
+        message: widget.path.reversed ? 'Unreverse Path' : 'Reverse Path',
+        child: GestureDetector(
+          onTap: () {
+            final newReversed = !widget.path.reversed;
+
+            widget.undoStack.add(Change(
+              widget.path.reversed,
+              () {
+                widget.path.reversed = newReversed;
+                widget.onPathChanged?.call();
+              },
+              (oldValue) {
+                widget.path.reversed = oldValue;
+                widget.onPathChanged?.call();
+              },
+            ));
+          },
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color.fromARGB(36, 0, 0, 0),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Icon(
+              widget.path.reversed
+                  ? Icons.arrow_forward_rounded
+                  : Icons.arrow_back_rounded,
+              color: Colors.white,
+              size: 15,
+            ),
+          ),
+        ),
+      );
 
   Widget _buildReversedCheckbox() {
-    ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
       elevation: 1.0,
       color: colorScheme.surface,
       surfaceTintColor: colorScheme.surfaceTint,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 12.0),
+        padding: const EdgeInsets.symmetric(
+          vertical: 10.0,
+          horizontal: 12.0,
+        ),
         child: Row(
           children: [
             Checkbox(
               value: widget.path.reversed,
               onChanged: (value) {
-                bool reversed = value ?? false;
+                final reversed = value ?? false;
 
                 widget.undoStack.add(Change(
                   widget.path.reversed,
@@ -368,14 +507,12 @@ class _PathTreeState extends State<PathTree> {
     );
   }
 
-  Widget _buildPathOptimizationTree() {
-    return PathOptimizationTree(
-      path: widget.path,
-      onPathChanged: widget.onPathChanged,
-      onUpdate: widget.onOptimizationUpdate,
-      undoStack: widget.undoStack,
-      prefs: widget.prefs,
-      fieldSizeMeters: widget.fieldSizeMeters,
-    );
-  }
+  Widget _buildPathOptimizationTree() => PathOptimizationTree(
+        path: widget.path,
+        onPathChanged: widget.onPathChanged,
+        onUpdate: widget.onOptimizationUpdate,
+        undoStack: widget.undoStack,
+        prefs: widget.prefs,
+        fieldSizeMeters: widget.fieldSizeMeters,
+      );
 }
