@@ -68,9 +68,8 @@ class SaveService {
         final x = _formatNum(w.anchor.x);
         final y = _formatNum(w.anchor.y);
         final angleDeg = _formatNum(w.holonomicAngle.degrees);
-        final tolerance = _formatNum(w.tolerance);
-        // rotationTolerance isn't stored per-waypoint in this project; use 360 as a default
-        final rotationTolerance = '360';
+  final tolerance = _formatNum(w.tolerance);
+  final rotationTolerance = _formatNum(w.toleranceDeg);
 
         String controllerRef = 'null';
         if (w.controllerSettingId != null && idToVar.containsKey(w.controllerSettingId)) {

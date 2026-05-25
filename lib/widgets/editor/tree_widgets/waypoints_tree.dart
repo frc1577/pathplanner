@@ -281,6 +281,26 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: NumberTextField(
+                    initialValue: waypoint.toleranceDeg,
+                    label: 'Rotation Tolerance (Deg)',
+                    onSubmitted: (value) {
+                      if (value != null) {
+                        Waypoint wRef = waypoints[waypointIdx];
+                        widget.undoStack.add(_waypointChange(
+                          wRef,
+                          () => wRef.toleranceDeg = value,
+                          (oldVal) => wRef.toleranceDeg = oldVal.toleranceDeg,
+                        ));
+                      }
+                    },
+                  ),
+                ),
+              ),
             ],
           ),
         ),

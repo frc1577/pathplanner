@@ -148,13 +148,16 @@ class PhysicsSimService {
       final num cruiseVelocity = max(0.0, startSettings?.cruiseVelocity ?? 2.0);
       final num maxAccel = max(1e-6, startSettings?.maxAcceleration ?? 1.0);
       final num tolerance = max(0.0, end.tolerance);
+      final num rotToleranceDeg = max(0.0, end.toleranceDeg);
+      final double rotToleranceRad = (rotToleranceDeg * pi / 180.0).toDouble();
 
       final Rotation2d targetHeading = end.holonomicAngle;
       int steps = 0;
 
       while (true) {
         double currentDistanceToEnd = sqrt(pow(end.anchor.x - x, 2) + pow(end.anchor.y - y, 2));
-        if (currentDistanceToEnd <= tolerance) {
+        double headingErrorAbs = _normalizeAngle(targetHeading.radians - theta).abs().toDouble();
+        if (currentDistanceToEnd <= tolerance && headingErrorAbs <= rotToleranceRad) {
           break;
         }
 
@@ -368,7 +371,10 @@ class PhysicsSimService {
       yController.setGoal(State(end.anchor.y.toDouble(), 0.0));
       rotationalController.setGoal(State(end.holonomicAngle.radians.toDouble(), 0.0));
 
-      while (sqrt(pow(end.anchor.x - x, 2) + pow(end.anchor.y - y, 2)) > end.tolerance) {
+  final num rotToleranceDeg2 = max(0.0, end.toleranceDeg);
+  final double rotToleranceRad2 = (rotToleranceDeg2 * pi / 180.0).toDouble();
+
+  while (sqrt(pow(end.anchor.x - x, 2) + pow(end.anchor.y - y, 2)) > end.tolerance || (_normalizeAngle(end.holonomicAngle.radians - theta).abs().toDouble() > rotToleranceRad2)) {
         double targetVx = xController.calculate(x);
         double targetVy = yController.calculate(y);
         double targetOmega = rotationalController.calculate(theta);

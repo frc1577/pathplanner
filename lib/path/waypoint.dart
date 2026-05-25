@@ -13,6 +13,7 @@ class Waypoint {
   num ki;
   num kd;
   num tolerance;
+  num toleranceDeg;
   bool isLocked;
   String? linkedName;
   String? controllerSettingId; // Reference to a controller setting
@@ -27,6 +28,7 @@ class Waypoint {
     this.ki = 0.0,
     this.kd = 0.0,
     this.tolerance = 0.1,
+    this.toleranceDeg = 360,
     this.isLocked = false,
     this.linkedName,
     this.controllerSettingId,
@@ -44,6 +46,7 @@ class Waypoint {
           ki: json['ki'] ?? 0.0,
           kd: json['kd'] ?? 0.0,
           tolerance: json['tolerance'] ?? 0.1,
+          toleranceDeg: json['toleranceDeg'] ?? 360,
           isLocked: json['isLocked'] ?? false,
           linkedName: json['linkedName'],
           controllerSettingId: json['controllerSettingId'],
@@ -77,6 +80,7 @@ class Waypoint {
       'ki': ki,
       'kd': kd,
       'tolerance': tolerance,
+      'toleranceDeg': toleranceDeg,
       'isLocked': isLocked,
       'linkedName': linkedName,
       'controllerSettingId': controllerSettingId,
@@ -101,6 +105,7 @@ class Waypoint {
       ki: ki,
       kd: kd,
       tolerance: tolerance,
+      toleranceDeg: toleranceDeg,
       isLocked: isLocked,
       linkedName: linkedName,
       controllerSettingId: controllerSettingId,
@@ -158,11 +163,12 @@ class Waypoint {
       other.kp == kp &&
       other.ki == ki &&
       other.kd == kd &&
-      other.tolerance == tolerance &&
+  other.tolerance == tolerance &&
+  other.toleranceDeg == toleranceDeg &&
       other.linkedName == linkedName &&
       other.controllerSettingId == controllerSettingId;
 
   @override
   int get hashCode => Object.hash(
-      anchor, holonomicAngle, kp, ki, kd, tolerance, linkedName, controllerSettingId);
+    anchor, holonomicAngle, kp, ki, kd, tolerance, toleranceDeg, linkedName, controllerSettingId);
 }

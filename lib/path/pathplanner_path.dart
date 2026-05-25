@@ -291,6 +291,7 @@ class PathPlannerPath {
       anchor: anchorPos,
       holonomicAngle: before.holonomicAngle,
       tolerance: before.tolerance,
+      toleranceDeg: before.toleranceDeg,
     );
 
     waypoints.insert(waypointIdx + 1, toAdd);
