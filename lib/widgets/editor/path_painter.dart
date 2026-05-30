@@ -4,8 +4,6 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:pathplanner/path/choreo_path.dart';
-import 'package:pathplanner/path/point_towards_zone.dart';
-import 'package:pathplanner/path/rotation_target.dart';
 import 'package:pathplanner/robot_features/feature.dart';
 import 'package:pathplanner/trajectory/config.dart';
 import 'package:pathplanner/trajectory/trajectory.dart';
@@ -116,11 +114,33 @@ class PathPainter extends CustomPainter {
         ? Colors.orange
         : colorScheme.secondary);
 
-      if (robotConfig.holonomic) {
-        _paintRotations(paths[i], canvas, scale);
-      }
+      // Rotation target rendering removed
 
-      _paintMarkers(paths[i], canvas);
+    _paintMarkers(paths[i], canvas);
+
+    // Paint start/end rotation outlines (keep these visible)
+    PathPainterUtil.paintRobotOutline(
+      Pose2d(paths[i].waypoints.first.anchor, paths[i].idealStartingState.rotation),
+      fieldImage,
+      robotConfig.bumperSize,
+      robotConfig.bumperOffset,
+      scale,
+      canvas,
+      Colors.green.withAlpha(125),
+      colorScheme.surfaceContainer,
+      robotFeatures);
+
+    PathPainterUtil.paintRobotOutline(
+      Pose2d(paths[i].waypoints[paths[i].waypoints.length - 1].anchor,
+        paths[i].goalEndState.rotation),
+      fieldImage,
+      robotConfig.bumperSize,
+      robotConfig.bumperOffset,
+      scale,
+      canvas,
+      Colors.red.withAlpha(125),
+      colorScheme.surfaceContainer,
+      robotFeatures);
 
       // Respect user pref to hide points and tolerance circles while keeping
       // robot and path rendering visible.
@@ -138,7 +158,7 @@ class PathPainter extends CustomPainter {
         }
       }
 
-      _paintPointZonePositions(paths[i], canvas, scale);
+  // Point Towards Zones rendering removed
     }
 
     for (int i = 0; i < choreoPaths.length; i++) {
@@ -367,111 +387,7 @@ class PathPainter extends CustomPainter {
 
     canvas.drawPath(p, paint);
 
-    if (selectedZone != null) {
-      paint.color = Colors.orange;
-      paint.strokeWidth = 6;
-      p.reset();
-
-      num startPos = path.constraintZones[selectedZone!].minWaypointRelativePos;
-      num endPos = path.constraintZones[selectedZone!].maxWaypointRelativePos;
-
-      Offset start = PathPainterUtil.pointToPixelOffset(
-          path.samplePath(startPos), scale, fieldImage);
-      p.moveTo(start.dx, start.dy);
-
-      for (num t = startPos + 0.05; t <= endPos; t += 0.05) {
-        Offset pos = PathPainterUtil.pointToPixelOffset(
-            path.samplePath(t), scale, fieldImage);
-
-        p.lineTo(pos.dx, pos.dy);
-      }
-      Offset end = PathPainterUtil.pointToPixelOffset(
-          path.samplePath(endPos), scale, fieldImage);
-      p.lineTo(end.dx, end.dy);
-
-      canvas.drawPath(p, paint);
-    }
-
-    if (hoveredZone != null && selectedZone != hoveredZone) {
-      paint.color = Colors.deepPurpleAccent;
-      paint.strokeWidth = 6;
-      p.reset();
-
-      num startPos = path.constraintZones[hoveredZone!].minWaypointRelativePos;
-      num endPos = path.constraintZones[hoveredZone!].maxWaypointRelativePos;
-
-      Offset start = PathPainterUtil.pointToPixelOffset(
-          path.samplePath(startPos), scale, fieldImage);
-      p.moveTo(start.dx, start.dy);
-
-      for (num t = startPos + 0.05; t <= endPos; t += 0.05) {
-        Offset pos = PathPainterUtil.pointToPixelOffset(
-            path.samplePath(t), scale, fieldImage);
-
-        p.lineTo(pos.dx, pos.dy);
-      }
-      Offset end = PathPainterUtil.pointToPixelOffset(
-          path.samplePath(endPos), scale, fieldImage);
-      p.lineTo(end.dx, end.dy);
-
-      canvas.drawPath(p, paint);
-    }
-
-    if (selectedPointZone != null) {
-      paint.color = Colors.orange;
-      paint.strokeWidth = 6;
-      p.reset();
-
-      num startPos =
-          path.pointTowardsZones[selectedPointZone!].minWaypointRelativePos;
-      num endPos =
-          path.pointTowardsZones[selectedPointZone!].maxWaypointRelativePos;
-
-      Offset start = PathPainterUtil.pointToPixelOffset(
-          path.samplePath(startPos), scale, fieldImage);
-      p.moveTo(start.dx, start.dy);
-
-      for (num t = startPos + 0.05; t <= endPos; t += 0.05) {
-        Offset pos = PathPainterUtil.pointToPixelOffset(
-            path.samplePath(t), scale, fieldImage);
-
-        p.lineTo(pos.dx, pos.dy);
-      }
-
-      Offset end = PathPainterUtil.pointToPixelOffset(
-          path.samplePath(endPos), scale, fieldImage);
-      p.lineTo(end.dx, end.dy);
-
-      canvas.drawPath(p, paint);
-    }
-
-    if (hoveredPointZone != null && selectedPointZone != hoveredPointZone) {
-      paint.color = Colors.deepPurpleAccent;
-      paint.strokeWidth = 6;
-      p.reset();
-
-      num startPos =
-          path.pointTowardsZones[hoveredPointZone!].minWaypointRelativePos;
-      num endPos =
-          path.pointTowardsZones[hoveredPointZone!].maxWaypointRelativePos;
-
-      Offset start = PathPainterUtil.pointToPixelOffset(
-          path.samplePath(startPos), scale, fieldImage);
-      p.moveTo(start.dx, start.dy);
-
-      for (num t = startPos + 0.05; t <= endPos; t += 0.05) {
-        Offset pos = PathPainterUtil.pointToPixelOffset(
-            path.samplePath(t), scale, fieldImage);
-
-        p.lineTo(pos.dx, pos.dy);
-      }
-
-      Offset end = PathPainterUtil.pointToPixelOffset(
-          path.samplePath(endPos), scale, fieldImage);
-      p.lineTo(end.dx, end.dy);
-
-      canvas.drawPath(p, paint);
-    }
+  // Constraint zones, point-towards zones and rotation target highlights removed
 
     if (selectedMarker != null && path.eventMarkers[selectedMarker!].isZoned) {
       paint.color = Colors.orange;
@@ -557,95 +473,7 @@ class PathPainter extends CustomPainter {
     }
   }
 
-  void _paintPointZonePositions(
-      PathPlannerPath path, Canvas canvas, double scale) {
-    if (selectedPointZone != null) {
-      final paint = Paint()
-        ..style = PaintingStyle.fill
-        ..color = Colors.orange
-        ..strokeWidth = 3;
-
-      PointTowardsZone z = path.pointTowardsZones[selectedPointZone!];
-      final location = PathPainterUtil.pointToPixelOffset(
-          z.fieldPosition, scale, fieldImage);
-
-      canvas.drawCircle(location,
-          PathPainterUtil.uiPointSizeToPixels(25, scale, fieldImage), paint);
-
-      paint.style = PaintingStyle.stroke;
-      canvas.drawCircle(location,
-          PathPainterUtil.uiPointSizeToPixels(40, scale, fieldImage), paint);
-    }
-
-    if (hoveredPointZone != null && hoveredPointZone != selectedPointZone) {
-      final paint = Paint()
-        ..style = PaintingStyle.fill
-        ..color = Colors.deepPurpleAccent
-        ..strokeWidth = 3;
-
-      PointTowardsZone z = path.pointTowardsZones[hoveredPointZone!];
-      final location = PathPainterUtil.pointToPixelOffset(
-          z.fieldPosition, scale, fieldImage);
-
-      canvas.drawCircle(location,
-          PathPainterUtil.uiPointSizeToPixels(25, scale, fieldImage), paint);
-
-      paint.style = PaintingStyle.stroke;
-      canvas.drawCircle(location,
-          PathPainterUtil.uiPointSizeToPixels(40, scale, fieldImage), paint);
-    }
-  }
-
-  void _paintRotations(PathPlannerPath path, Canvas canvas, double scale) {
-    for (int i = 0; i < path.pathPoints.length - 1; i++) {
-      if (path.pathPoints[i].rotationTarget != null &&
-          path.pathPoints[i].rotationTarget!.displayInEditor) {
-        RotationTarget target = path.pathPoints[i].rotationTarget!;
-        Color rotationColor = Colors.grey[700]!;
-        if (selectedRotTarget != null &&
-            path.rotationTargets[selectedRotTarget!] == target) {
-          rotationColor = Colors.orange;
-        } else if (hoveredRotTarget != null &&
-            path.rotationTargets[hoveredRotTarget!] == target) {
-          rotationColor = Colors.deepPurpleAccent;
-        }
-
-        PathPainterUtil.paintRobotOutline(
-            Pose2d(path.pathPoints[i].position, target.rotation),
-            fieldImage,
-            robotConfig.bumperSize,
-            robotConfig.bumperOffset,
-            scale,
-            canvas,
-            rotationColor,
-            colorScheme.surfaceContainer,
-            robotFeatures);
-      }
-    }
-
-    PathPainterUtil.paintRobotOutline(
-        Pose2d(path.waypoints.first.anchor, path.idealStartingState.rotation),
-        fieldImage,
-        robotConfig.bumperSize,
-        robotConfig.bumperOffset,
-        scale,
-        canvas,
-        Colors.green.withAlpha(125),
-        colorScheme.surfaceContainer,
-        robotFeatures);
-
-    PathPainterUtil.paintRobotOutline(
-        Pose2d(path.waypoints[path.waypoints.length - 1].anchor,
-            path.goalEndState.rotation),
-        fieldImage,
-        robotConfig.bumperSize,
-        robotConfig.bumperOffset,
-        scale,
-        canvas,
-        Colors.red.withAlpha(125),
-        colorScheme.surfaceContainer,
-        robotFeatures);
-  }
+  // Point Towards Zones and Rotation Target rendering removed
 
   void _paintBreakWarning(Translation2d prevPathEnd, Translation2d pathStart,
       Canvas canvas, double scale) {

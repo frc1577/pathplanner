@@ -7,8 +7,6 @@ import 'package:pathplanner/path/constraints_zone.dart';
 import 'package:pathplanner/path/event_marker.dart';
 import 'package:pathplanner/path/path_constraints.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
-import 'package:pathplanner/path/point_towards_zone.dart';
-import 'package:pathplanner/path/rotation_target.dart';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/services/log.dart';
 import 'package:pathplanner/services/pplib_telemetry.dart';
@@ -73,7 +71,6 @@ class _SplitPathEditorState extends State<SplitPathEditor>
   Waypoint? _draggedPoint;
   Waypoint? _dragOldValue;
   int? _draggedRotationIdx;
-  Translation2d? _draggedRotationPos;
   Rotation2d? _dragRotationOldValue;
   PhysicsSimulationResult? _simResult;
   bool _paused = false;
@@ -209,47 +206,40 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                   }
                 }
 
-                // Not dragging any waypoints, check rotations
+                // Not dragging any waypoints, check start/end rotation handles
                 num dotRadius = _pixelsToMeters(
                     PathPainterUtil.uiPointSizeToPixels(
                         15, PathPainter.scale, widget.fieldImage));
-                for (int i = 0; i < widget.path.pathPoints.length; i++) {
-                  Rotation2d rotation;
-                  Translation2d pos;
-                  if (i == 0) {
-                    rotation = widget.path.idealStartingState.rotation;
-                    pos = widget.path.pathPoints.first.position;
-                  } else if (i == widget.path.pathPoints.length - 1) {
-                    rotation = widget.path.goalEndState.rotation;
-                    pos = widget.path.pathPoints.last.position;
-                  } else if (widget.path.pathPoints[i].rotationTarget != null) {
-                    rotation =
-                        widget.path.pathPoints[i].rotationTarget!.rotation;
-                    pos = widget.path.pathPoints[i].position;
-                  } else {
-                    continue;
-                  }
+                // Check ideal start
+                Translation2d startPos = widget.path.pathPoints.first.position;
+                Rotation2d startRot = widget.path.idealStartingState.rotation;
+                num startX = startPos.x +
+                    (((_robotSize.height / 2) + _bumperOffset.x) *
+                        startRot.cosine);
+                num startY = startPos.y +
+                    (((_robotSize.height / 2) + _bumperOffset.x) *
+                        startRot.sine);
+                if (pow(xPos - startX, 2) + pow(yPos - startY, 2) <
+                    pow(dotRadius, 2)) {
+                  _draggedRotationIdx = -2;
+                  _dragRotationOldValue = startRot;
+                  return;
+                }
 
-                  num dotX = pos.x +
-                      (((_robotSize.height / 2) + _bumperOffset.x) *
-                          rotation.cosine);
-                  num dotY = pos.y +
-                      (((_robotSize.height / 2) + _bumperOffset.x) *
-                          rotation.sine);
-                  if (pow(xPos - dotX, 2) + pow(yPos - dotY, 2) <
-                      pow(dotRadius, 2)) {
-                    if (i == 0) {
-                      _draggedRotationIdx = -2;
-                    } else if (i == widget.path.pathPoints.length - 2) {
-                      _draggedRotationIdx = -1;
-                    } else {
-                      _draggedRotationIdx = widget.path.rotationTargets
-                          .indexOf(widget.path.pathPoints[i].rotationTarget!);
-                    }
-                    _draggedRotationPos = pos;
-                    _dragRotationOldValue = rotation;
-                    return;
-                  }
+                // Check goal end
+                Translation2d endPos = widget.path.pathPoints.last.position;
+                Rotation2d endRot = widget.path.goalEndState.rotation;
+                num endX = endPos.x +
+                    (((_robotSize.height / 2) + _bumperOffset.x) *
+                        endRot.cosine);
+                num endY = endPos.y +
+                    (((_robotSize.height / 2) + _bumperOffset.x) *
+                        endRot.sine);
+                if (pow(xPos - endX, 2) + pow(yPos - endY, 2) <
+                    pow(dotRadius, 2)) {
+                  _draggedRotationIdx = -1;
+                  _dragRotationOldValue = endRot;
+                  return;
                 }
               },
               onPanUpdate: (details) {
@@ -311,10 +301,8 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                   Translation2d pos;
                   if (_draggedRotationIdx == -2) {
                     pos = widget.path.waypoints.first.anchor;
-                  } else if (_draggedRotationIdx == -1) {
-                    pos = widget.path.waypoints.last.anchor;
                   } else {
-                    pos = _draggedRotationPos!;
+                    pos = widget.path.waypoints.last.anchor;
                   }
 
                   double x = _xPixelsToMeters(details.localPosition.dx);
@@ -326,10 +314,6 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                           Rotation2d.fromComponents(x - pos.x, y - pos.y);
                     } else if (_draggedRotationIdx == -1) {
                       widget.path.goalEndState.rotation =
-                          Rotation2d.fromComponents(x - pos.x, y - pos.y);
-                    } else {
-                      widget.path.rotationTargets[_draggedRotationIdx!]
-                              .rotation =
                           Rotation2d.fromComponents(x - pos.x, y - pos.y);
                     }
                   });
@@ -411,34 +395,8 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                         });
                       },
                     ));
-                  } else {
-                    int rotationIdx = _draggedRotationIdx!;
-                    final endRotation =
-                        widget.path.rotationTargets[rotationIdx].rotation;
-                    widget.undoStack.add(Change(
-                      _dragRotationOldValue,
-                      () {
-                        setState(() {
-                          widget.path.rotationTargets[rotationIdx].rotation =
-                              endRotation;
-                          widget.path.generateAndSavePath();
-                          _simulatePath();
-                          widget.onPathChanged?.call();
-                        });
-                      },
-                      (oldValue) {
-                        setState(() {
-                          widget.path.rotationTargets[rotationIdx].rotation =
-                              oldValue!;
-                          widget.path.generateAndSavePath();
-                          _simulatePath();
-                          widget.onPathChanged?.call();
-                        });
-                      },
-                    ));
                   }
                   _draggedRotationIdx = null;
-                  _draggedRotationPos = null;
                 }
               },
               child: Padding(
@@ -606,10 +564,6 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                               widget.path.constraintZones),
                           PathPlannerPath.cloneEventMarkers(
                               widget.path.eventMarkers),
-                          PathPlannerPath.cloneRotationTargets(
-                              widget.path.rotationTargets),
-                          PathPlannerPath.clonePointTowardsZones(
-                              widget.path.pointTowardsZones),
                         ],
                         () {
                           setState(() {
@@ -629,15 +583,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                                       zone.maxWaypointRelativePos, waypointIdx);
                             }
 
-                            for (PointTowardsZone zone
-                                in widget.path.pointTowardsZones) {
-                              zone.minWaypointRelativePos =
-                                  _adjustDeletedWaypointRelativePos(
-                                      zone.minWaypointRelativePos, waypointIdx);
-                              zone.maxWaypointRelativePos =
-                                  _adjustDeletedWaypointRelativePos(
-                                      zone.maxWaypointRelativePos, waypointIdx);
-                            }
+              // Adjust constraint zones and event markers
 
                             for (EventMarker m in widget.path.eventMarkers) {
                               m.waypointRelativePos =
@@ -645,12 +591,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                                       m.waypointRelativePos, waypointIdx);
                             }
 
-                            for (RotationTarget t
-                                in widget.path.rotationTargets) {
-                              t.waypointRelativePos =
-                                  _adjustDeletedWaypointRelativePos(
-                                      t.waypointRelativePos, waypointIdx);
-                            }
+              // rotationTargets removed
 
                             widget.path.generateAndSavePath();
                             _simulatePath();
@@ -671,12 +612,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                             widget.path.eventMarkers =
                                 PathPlannerPath.cloneEventMarkers(
                                     oldValue[2] as List<EventMarker>);
-                            widget.path.rotationTargets =
-                                PathPlannerPath.cloneRotationTargets(
-                                    oldValue[3] as List<RotationTarget>);
-                            widget.path.pointTowardsZones =
-                                PathPlannerPath.clonePointTowardsZones(
-                                    oldValue[4] as List<PointTowardsZone>);
+              // rotationTargets and pointTowardsZones restored removed
                             widget.path.generateAndSavePath();
                             _simulatePath();
                           });

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:pathplanner/path/constraints_zone.dart';
 import 'package:pathplanner/path/event_marker.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
-import 'package:pathplanner/path/rotation_target.dart';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/services/physics_sim_service.dart';
 import 'package:pathplanner/pages/controller_settings_page.dart';
@@ -402,29 +401,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
             runSpacing: 8.0,
             alignment: WrapAlignment.center,
             children: [
-              if (widget.holonomicMode)
-                Tooltip(
-                  message: 'Add Rotation Target at Waypoint',
-                  child: IconButton(
-                    onPressed: () {
-                      widget.undoStack.add(Change(
-                        PathPlannerPath.cloneRotationTargets(
-                            widget.path.rotationTargets),
-                        () {
-                          widget.path.rotationTargets.add(
-                              RotationTarget(waypointIdx, const Rotation2d()));
-                          widget.onPathChanged?.call();
-                        },
-                        (oldValue) {
-                          widget.path.rotationTargets =
-                              PathPlannerPath.cloneRotationTargets(oldValue);
-                          widget.onPathChanged?.call();
-                        },
-                      ));
-                    },
-                    icon: const Icon(Icons.rotate_right_rounded, size: 20),
-                  ),
-                ),
+              // Rotation Targets UI removed
               if (waypointIdx != waypoints.length - 1)
                 Tooltip(
                   message: 'Create New Waypoint After',
@@ -437,8 +414,6 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                               widget.path.constraintZones),
                           PathPlannerPath.cloneEventMarkers(
                               widget.path.eventMarkers),
-                          PathPlannerPath.cloneRotationTargets(
-                              widget.path.rotationTargets),
                         ],
                         () {
                           widget.path.insertWaypointAfter(waypointIdx);
@@ -452,15 +427,12 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                           widget.path.waypoints =
                               PathPlannerPath.cloneWaypoints(
                                   oldValue[0] as List<Waypoint>);
-                          widget.path.constraintZones =
-                              PathPlannerPath.cloneConstraintZones(
-                                  oldValue[1] as List<ConstraintsZone>);
-                          widget.path.eventMarkers =
-                              PathPlannerPath.cloneEventMarkers(
-                                  oldValue[2] as List<EventMarker>);
-                          widget.path.rotationTargets =
-                              PathPlannerPath.cloneRotationTargets(
-                                  oldValue[3] as List<RotationTarget>);
+              widget.path.constraintZones =
+                PathPlannerPath.cloneConstraintZones(
+                  oldValue[1] as List<ConstraintsZone>);
+              widget.path.eventMarkers =
+                PathPlannerPath.cloneEventMarkers(
+                  oldValue[2] as List<EventMarker>);
 
                           widget.onPathChanged?.call();
                         },

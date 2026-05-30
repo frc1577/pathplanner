@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:pathplanner/path/path_constraints.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
-import 'package:pathplanner/widgets/editor/tree_widgets/constraint_zones_tree.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/editor_settings_tree.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/event_markers_tree.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/global_constraints_tree.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/goal_end_state_tree.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/ideal_starting_state_tree.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/path_optimization_tree.dart';
-import 'package:pathplanner/widgets/editor/tree_widgets/point_towards_zones_tree.dart';
-import 'package:pathplanner/widgets/editor/tree_widgets/rotation_targets_tree.dart';
+// Rotation Targets / Point Towards Zones / Constraint Zones UI removed
 import 'package:pathplanner/widgets/editor/tree_widgets/waypoints_tree.dart';
 import 'package:pathplanner/services/save_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -100,16 +98,12 @@ class _PathTreeState extends State<PathTree> {
               children: [
                 _buildWaypointsTree(),
                 _buildEventMarkersTree(),
-                if (widget.holonomicMode) ...[
-                  _buildRotationTargetsTree(),
-                  _buildPointZonesTree(),
-                ],
+                // Rotation Targets and Point Towards Zones UI removed
                 const Divider(),
                 _buildIdealStartingStateTree(),
                 _buildGoalEndStateTree(),
                 const Divider(),
                 _buildGlobalConstraintsTree(),
-                _buildConstraintZonesTree(),
                 if (!widget.holonomicMode) _buildReversedCheckbox(),
                 const Divider(),
                 _buildPathOptimizationTree(),
@@ -385,27 +379,6 @@ class _PathTreeState extends State<PathTree> {
         holonomicMode: widget.holonomicMode,
       );
 
-  Widget _buildRotationTargetsTree() => RotationTargetsTree(
-        key: ValueKey('rotations${widget.path.rotationTargets.length}'),
-        path: widget.path,
-        onPathChanged: widget.onPathChanged,
-        onPathChangedNoSim: widget.onPathChangedNoSim,
-        onTargetHovered: widget.onRotTargetHovered,
-        onTargetSelected: widget.onRotTargetSelected,
-        initiallySelectedTarget: widget.initiallySelectedRotTarget,
-        undoStack: widget.undoStack,
-      );
-
-  Widget _buildPointZonesTree() => PointTowardsZonesTree(
-        key: ValueKey('pointZones${widget.path.pointTowardsZones.length}'),
-        path: widget.path,
-        onPathChanged: widget.onPathChanged,
-        onPathChangedNoSim: widget.onPathChangedNoSim,
-        onZoneHovered: widget.onPointZoneHovered,
-        onZoneSelected: widget.onPointZoneSelected,
-        initiallySelectedZone: widget.initiallySelectedPointZone,
-        undoStack: widget.undoStack,
-      );
 
   Widget _buildEventMarkersTree() => EventMarkersTree(
         key: ValueKey('markers${widget.path.eventMarkers.length}'),
@@ -417,16 +390,7 @@ class _PathTreeState extends State<PathTree> {
         undoStack: widget.undoStack,
       );
 
-  Widget _buildConstraintZonesTree() => ConstraintZonesTree(
-        key: ValueKey('zones${widget.path.constraintZones.length}'),
-        path: widget.path,
-        onPathChanged: widget.onPathChanged,
-        onPathChangedNoSim: widget.onPathChangedNoSim,
-        onZoneHovered: widget.onZoneHovered,
-        onZoneSelected: widget.onZoneSelected,
-        initiallySelectedZone: widget.initiallySelectedZone,
-        undoStack: widget.undoStack,
-      );
+  // Constraint Zones UI removed
 
   Widget _buildReversedButton() => Tooltip(
         message: widget.path.reversed ? 'Unreverse Path' : 'Reverse Path',
