@@ -17,14 +17,16 @@ void main() {
       waypoints: [
         Waypoint(
           anchor: const Translation2d(0.0, 0.0),
-          cruiseVelocity: 2.0,
-          maxAcceleration: 1.0,
+          kp: 2.0,
+          ki: 0.0,
+          kd: 1.0,
           tolerance: 0.05,
         ),
         Waypoint(
           anchor: const Translation2d(2.0, 0.0),
-          cruiseVelocity: 2.0,
-          maxAcceleration: 1.0,
+          kp: 2.0,
+          ki: 0.0,
+          kd: 1.0,
           tolerance: 0.05,
         ),
       ],
@@ -38,6 +40,7 @@ void main() {
       folder: null,
       idealStartingState: IdealStartingState(0.0, const Rotation2d()),
       useDefaultConstraints: false,
+      controllerSettings: List.of(ControllerSettingsStore.settings),
     );
 
     final result = PhysicsSimService.simulatePath(path);

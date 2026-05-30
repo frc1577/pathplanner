@@ -13,6 +13,7 @@ import 'package:pathplanner/trajectory/auto_simulator.dart';
 import 'package:pathplanner/trajectory/config.dart';
 import 'package:pathplanner/trajectory/dc_motor.dart';
 import 'package:pathplanner/trajectory/trajectory.dart';
+import 'package:pathplanner/services/physics_sim_service.dart';
 import 'package:pathplanner/util/wpimath/geometry.dart';
 
 void main() {
@@ -46,6 +47,7 @@ void main() {
       folder: null,
       idealStartingState: IdealStartingState(0.0, const Rotation2d()),
       useDefaultConstraints: false,
+      controllerSettings: List.of(ControllerSettingsStore.settings),
     );
 
     PathPlannerPath test2 = PathPlannerPath(
@@ -77,6 +79,7 @@ void main() {
       folder: null,
       idealStartingState: IdealStartingState(0.0, const Rotation2d()),
       useDefaultConstraints: false,
+      controllerSettings: List.of(ControllerSettingsStore.settings),
     );
 
     var config = RobotConfig(

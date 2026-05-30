@@ -10,6 +10,7 @@ import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/trajectory/config.dart';
 import 'package:pathplanner/util/path_optimizer.dart';
 import 'package:pathplanner/util/wpimath/geometry.dart';
+import 'package:pathplanner/services/physics_sim_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -42,6 +43,7 @@ void main() {
       folder: null,
       idealStartingState: IdealStartingState(0.0, const Rotation2d()),
       useDefaultConstraints: false,
+      controllerSettings: List.of(ControllerSettingsStore.settings),
     );
 
   RobotConfig config = RobotConfig.fromPrefs(prefs);

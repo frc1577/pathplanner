@@ -10,15 +10,16 @@ void main() {
       Waypoint w = Waypoint(
         anchor: const Translation2d(2.0, 2.0),
         holonomicAngle: Rotation2d.fromDegrees(45),
-        cruiseVelocity: 2.5,
-        maxAcceleration: 3.5,
+        kp: 2.5,
+        ki: 0.0,
+        kd: 3.5,
         tolerance: 0.15,
       );
 
       expect(w.anchor, const Translation2d(2.0, 2.0));
       expect(w.holonomicAngle.degrees, closeTo(45.0, epsilon));
-      expect(w.cruiseVelocity, 2.5);
-      expect(w.maxAcceleration, 3.5);
+      expect(w.kp, 2.5);
+      expect(w.kd, 3.5);
       expect(w.tolerance, 0.15);
     });
 
@@ -26,8 +27,9 @@ void main() {
       Waypoint w = Waypoint(
         anchor: const Translation2d(2.0, 2.0),
         holonomicAngle: Rotation2d.fromDegrees(30),
-        cruiseVelocity: 2.0,
-        maxAcceleration: 4.0,
+        kp: 2.0,
+        ki: 0.0,
+        kd: 4.0,
         tolerance: 0.2,
       );
 
@@ -41,8 +43,9 @@ void main() {
       Waypoint w = Waypoint(
         anchor: const Translation2d(2.0, 2.0),
         holonomicAngle: Rotation2d.fromDegrees(30),
-        cruiseVelocity: 2.0,
-        maxAcceleration: 4.0,
+        kp: 2.0,
+        ki: 0.0,
+        kd: 4.0,
         tolerance: 0.2,
       );
       Waypoint cloned = w.clone();
@@ -58,22 +61,25 @@ void main() {
       Waypoint w1 = Waypoint(
         anchor: const Translation2d(2.0, 2.0),
         holonomicAngle: Rotation2d.fromDegrees(30),
-        cruiseVelocity: 2.0,
-        maxAcceleration: 4.0,
+        kp: 2.0,
+        ki: 0.0,
+        kd: 4.0,
         tolerance: 0.2,
       );
       Waypoint w2 = Waypoint(
         anchor: const Translation2d(2.0, 2.0),
         holonomicAngle: Rotation2d.fromDegrees(30),
-        cruiseVelocity: 2.0,
-        maxAcceleration: 4.0,
+        kp: 2.0,
+        ki: 0.0,
+        kd: 4.0,
         tolerance: 0.2,
       );
       Waypoint w3 = Waypoint(
         anchor: const Translation2d(2.0, 2.0),
         holonomicAngle: Rotation2d.fromDegrees(31),
-        cruiseVelocity: 2.0,
-        maxAcceleration: 4.0,
+        kp: 2.0,
+        ki: 0.0,
+        kd: 4.0,
         tolerance: 0.2,
       );
 

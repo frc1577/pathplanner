@@ -13,7 +13,7 @@ class SaveService {
     );
 
     // Helper to create a safe java variable name from controller name
-    String _toVarName(String input) {
+    String toVarName(String input) {
       if (input.trim().isEmpty) return 'settingPID';
 
       // remove non-alphanumeric, split on spaces/underscores/dashes
@@ -41,8 +41,8 @@ class SaveService {
 
     final usedNames = <String>{};
 
-    String _uniqueVarName(String input) {
-      final base = _toVarName(input);
+    String uniqueVarName(String input) {
+      final base = toVarName(input);
 
       var name = base;
       int i = 1;
@@ -63,7 +63,7 @@ class SaveService {
     final idToVar = <String, String>{};
 
     for (final s in settings) {
-      final varName = _uniqueVarName(
+      final varName = uniqueVarName(
         s.name.isEmpty ? 'setting${s.id}' : s.name,
       );
 

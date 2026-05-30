@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/waypoint.dart';
+import 'package:pathplanner/services/physics_sim_service.dart';
 import 'package:pathplanner/util/wpimath/geometry.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/tree_card_node.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/waypoints_tree.dart';
@@ -312,7 +313,7 @@ void main() {
     expect(path.waypoints[1].heading.degrees, closeTo(oldVal.degrees, epsilon));
   });
 
-  testWidgets('Cruise velocity text field', (widgetTester) async {
+  testWidgets('Controller settings dropdown', (widgetTester) async {
     await widgetTester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: WaypointsTree(
@@ -328,26 +329,24 @@ void main() {
       ),
     ));
 
-  var textField =
-    find.widgetWithText(NumberTextField, 'Cruise Velocity (M/S)');
+    // The dropdown shows a hint when no controller is selected
+    expect(find.text('Select Controller Setting'), findsOneWidget);
 
-    expect(textField, findsOneWidget);
+    // Open the dropdown and select the first controller setting
+    await widgetTester.tap(find.byType(DropdownButton<String>));
+    await widgetTester.pumpAndSettle();
 
-  num oldVal = path.waypoints[1].cruiseVelocity;
-
-    await widgetTester.enterText(textField, '0.75');
-    await widgetTester.testTextInput.receiveAction(TextInputAction.done);
-    await widgetTester.pump();
+    final settingName = ControllerSettingsStore.settings.first.name;
+    // Menu items may have duplicate text widgets; pick the last one
+    await widgetTester.tap(find.text(settingName).last);
+    await widgetTester.pumpAndSettle();
 
     expect(pathChanged, true);
-  expect(path.waypoints[1].cruiseVelocity, closeTo(0.75, epsilon));
-
-    undoStack.undo();
-    await widgetTester.pump();
-    expect(path.waypoints[1].cruiseVelocity, closeTo(oldVal, epsilon));
+    expect(path.waypoints[1].controllerSettingId,
+        ControllerSettingsStore.settings.first.id);
   });
 
-  testWidgets('Max acceleration text field', (widgetTester) async {
+  testWidgets('Manage controller settings button visible', (widgetTester) async {
     await widgetTester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: WaypointsTree(
@@ -363,23 +362,7 @@ void main() {
       ),
     ));
 
-  var textField =
-    find.widgetWithText(NumberTextField, 'Max Accel (M/S²)');
-
-    expect(textField, findsOneWidget);
-
-  num oldVal = path.waypoints[0].maxAcceleration;
-
-    await widgetTester.enterText(textField, '0.75');
-    await widgetTester.testTextInput.receiveAction(TextInputAction.done);
-    await widgetTester.pump();
-
-    expect(pathChanged, true);
-  expect(path.waypoints[0].maxAcceleration, closeTo(0.75, epsilon));
-
-    undoStack.undo();
-    await widgetTester.pump();
-    expect(path.waypoints[0].maxAcceleration, closeTo(oldVal, epsilon));
+    expect(find.byTooltip('Manage Controller Settings'), findsOneWidget);
   });
 
   testWidgets('Insert waypoint button', (widgetTester) async {
