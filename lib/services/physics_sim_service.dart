@@ -329,7 +329,8 @@ class PhysicsSimService {
 
     xController.reset(State(x, 0.0));
     yController.reset(State(y, 0.0));
-    rotationalController.reset(State(theta, 0.0));
+  rotationalController.enableContinuousInput(-pi, pi);
+  rotationalController.reset(State(theta, 0.0));
 
     xController.setGoal(State(x, 0.0));
     yController.setGoal(State(y, 0.0));
