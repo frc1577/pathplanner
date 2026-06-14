@@ -14,7 +14,7 @@ class SaveService {
 
     // Helper to create a safe java variable name from controller name
     String toVarName(String input) {
-      if (input.trim().isEmpty) return 'settingPID';
+      if (input.trim().isEmpty) return 'setting';
 
       // remove non-alphanumeric, split on spaces/underscores/dashes
       final parts = input
@@ -23,7 +23,7 @@ class SaveService {
           .where((s) => s.isNotEmpty)
           .toList();
 
-      if (parts.isEmpty) return 'settingPID';
+      if (parts.isEmpty) return 'setting';
 
       final camel = parts
           .map((p) => p[0].toUpperCase() + p.substring(1))
@@ -36,7 +36,7 @@ class SaveService {
         res = '_$res';
       }
 
-      return '${res}PID';
+      return res;
     }
 
     final usedNames = <String>{};
@@ -69,6 +69,8 @@ class SaveService {
 
       idToVar[s.id] = varName;
 
+      // Add @Sync annotation with the exported setting name
+      sb.writeln('@Sync("$varName")');
       sb.writeln(
         'public static ProfiledPIDSettings $varName = new ProfiledPIDSettings() {{',
       );
