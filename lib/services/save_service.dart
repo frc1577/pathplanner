@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/services/log.dart';
 import 'package:pathplanner/services/physics_sim_service.dart';
+import 'package:pathplanner/util/wpimath/geometry.dart';
 
 class SaveService {
   static Future<String> exportToCustomFormat(
@@ -187,5 +188,53 @@ class SaveService {
     }
 
     return d.toString();
+  }
+
+  /// Parse a Java-style list of add(new Waypoint(...)) lines and return waypoints.
+  ///
+  /// Example supported line:
+  /// add(new Waypoint(new Pose2d(3.15, 7.58, new Rotation2d(Math.toRadians(0))), 1, 360, AutoConstants.mediumPID));
+  ///
+  /// This will ignore AutoConstants references and instead only read the numeric
+  /// values for x, y, angle (degrees), tolerance, toleranceDeg. Controller
+  /// settings will be left null.
+  static List<Waypoint> importFromJavaWaypoints(String input) {
+    final lines = input.split(RegExp(r"\r?\n"));
+    final waypoints = <Waypoint>[];
+
+    final pattern = RegExp(
+      r"add\s*\(\s*new\s+Waypoint\s*\(\s*new\s+Pose2d\s*\(\s*([0-9+\-eE.]+)\s*,\s*([0-9+\-eE.]+)\s*,\s*new\s+Rotation2d\s*\(\s*Math\.toRadians\s*\(\s*([0-9+\-eE.]+)\s*\)\s*\)\s*\)\s*,\s*([0-9+\-eE.]+)\s*,\s*([0-9+\-eE.]+)",
+      caseSensitive: false,
+    );
+
+    for (final raw in lines) {
+      final line = raw.trim();
+      if (line.isEmpty) continue;
+
+      final m = pattern.firstMatch(line);
+      if (m != null && m.groupCount >= 5) {
+        try {
+          final x = double.parse(m.group(1)!);
+          final y = double.parse(m.group(2)!);
+          final angDeg = double.parse(m.group(3)!);
+          final tol = double.parse(m.group(4)!);
+          final tolDeg = double.parse(m.group(5)!);
+
+          final wp = Waypoint(
+            anchor: Translation2d(x, y),
+            holonomicAngle: Rotation2d.fromDegrees(angDeg),
+            tolerance: tol,
+            toleranceDeg: tolDeg,
+            controllerSettingId: null,
+          );
+
+          waypoints.add(wp);
+        } catch (e) {
+          Log.warning('Failed to parse waypoint line: $line -> $e');
+        }
+      }
+    }
+
+    return waypoints;
   }
 }

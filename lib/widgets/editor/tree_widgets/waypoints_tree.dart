@@ -4,6 +4,7 @@ import 'package:pathplanner/path/event_marker.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/services/physics_sim_service.dart';
+import 'package:pathplanner/services/save_service.dart';
 import 'package:pathplanner/pages/controller_settings_page.dart';
 import 'package:pathplanner/util/prefs.dart';
 import 'package:pathplanner/util/wpimath/geometry.dart';
@@ -83,6 +84,78 @@ class _WaypointsTreeState extends State<WaypointsTree> {
       },
       elevation: 1.0,
       children: [
+        // Add import button row
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Tooltip(
+                message: 'Import Java-style Waypoints',
+                child: IconButton(
+                  icon: const Icon(Icons.file_upload_outlined),
+                  onPressed: () async {
+                    final TextEditingController ctrl =
+                        TextEditingController();
+                    final result = await showDialog<String?>(
+                        context: context,
+                        builder: (context) {
+                          ColorScheme cs = Theme.of(context).colorScheme;
+                          return AlertDialog(
+                            backgroundColor: cs.surface,
+                            surfaceTintColor: cs.surfaceTint,
+                            title: const Text('Import Waypoints'),
+                            content: SizedBox(
+                              width: 600,
+                              child: TextField(
+                                controller: ctrl,
+                                maxLines: 16,
+                                decoration: const InputDecoration(
+                                    labelText: 'Paste Java add(...) lines here'),
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text('Cancel')),
+                              TextButton(
+                                  onPressed: () => Navigator.of(context).pop(ctrl.text),
+                                  child: const Text('Import')),
+                            ],
+                          );
+                        });
+
+                    if (result != null && result.trim().isNotEmpty) {
+                      final parsed =
+                          SaveService.importFromJavaWaypoints(result);
+
+                      if (parsed.isNotEmpty) {
+                        // Insert parsed waypoints at the end of the list via undo change
+                        widget.undoStack.add(Change(
+                          PathPlannerPath.cloneWaypoints(widget.path.waypoints),
+                          () {
+                            setState(() {
+                              widget.path.waypoints.addAll(parsed);
+                              widget.onPathChanged?.call();
+                            });
+                          },
+                          (oldValue) {
+                            setState(() {
+                              widget.path.waypoints =
+                                  PathPlannerPath.cloneWaypoints(oldValue);
+                              widget.onPathChanged?.call();
+                            });
+                          },
+                        ));
+                      }
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+
         for (int w = 0; w < waypoints.length; w++) _buildWaypointTreeNode(w),
       ],
     );
