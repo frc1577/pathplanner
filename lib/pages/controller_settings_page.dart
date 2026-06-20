@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pathplanner/services/physics_sim_service.dart';
+import 'package:pathplanner/services/save_service.dart';
 
 class ControllerSettingsPage extends StatefulWidget {
   final List<ControllerSetting> controllerSettings;
@@ -92,6 +93,73 @@ class _ControllerSettingsPageState extends State<ControllerSettingsPage> {
       appBar: AppBar(
         title: const Text('Controller Settings'),
         actions: [
+          TextButton(
+            onPressed: () async {
+              final controller = TextEditingController();
+
+              final res = await showDialog<bool?>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Import Controllers'),
+                  content: SizedBox(
+                    width: 600,
+                    child: TextField(
+                      controller: controller,
+                      maxLines: 15,
+                      decoration: const InputDecoration(
+                        hintText: 'Paste Java controller blocks here',
+                      ),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(true),
+                      child: const Text('Import'),
+                    ),
+                  ],
+                ),
+              );
+
+              if (res == true) {
+                final text = controller.text;
+                final parsed = SaveService.importFromJavaControllers(text);
+                if (parsed.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('No controller blocks found or parse failed.'),
+                  ));
+                } else {
+                  setState(() {
+                    for (final s in parsed) {
+                      _controllerSettings.add({
+                        'id': s.id,
+                        'name': s.name,
+                        'kp': s.kp,
+                        'ki': s.ki,
+                        'kd': s.kd,
+                        'cruiseVelocity': s.cruiseVelocity,
+                        'maxAcceleration': s.maxAcceleration,
+                        'angularKp': s.angularKp,
+                        'angularKi': s.angularKi,
+                        'angularKd': s.angularKd,
+                        'angularMaxVelocity': s.angularMaxVelocity,
+                        'angularMaxAcceleration': s.angularMaxAcceleration,
+                      });
+                    }
+                    _notifyChanged();
+                  });
+
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('Imported ${parsed.length} controller(s).'),
+                  ));
+                }
+              }
+            },
+            child: const Text('Import', style: TextStyle(color: Colors.white)),
+          ),
           TextButton(
             onPressed: () {
         // Return updated settings as typed ControllerSetting list
