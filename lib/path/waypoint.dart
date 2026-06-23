@@ -90,6 +90,9 @@ class Waypoint {
   Rotation2d get heading => holonomicAngle;
 
   void move(num x, num y) {
+    // Prevent programmatic moves when the waypoint is locked.
+    if (isLocked) return;
+
     anchor = Translation2d(x, y);
 
     if (linkedName != null) {
@@ -113,6 +116,8 @@ class Waypoint {
   }
 
   void setHeading(Rotation2d heading) {
+    if (isLocked) return;
+
     holonomicAngle = heading;
   }
 
@@ -142,9 +147,12 @@ class Waypoint {
     if (_isAnchorDragging && !isLocked) {
       move(x, y);
     } else if (_isHeadingDragging) {
-      Rotation2d newHeading = Rotation2d.fromComponents(x - anchor.x, y - anchor.y);
-      if (newHeading.radians.isFinite) {
-        holonomicAngle = newHeading;
+      // Do not allow interactive heading changes when waypoint is locked
+      if (!isLocked) {
+        Rotation2d newHeading = Rotation2d.fromComponents(x - anchor.x, y - anchor.y);
+        if (newHeading.radians.isFinite) {
+          holonomicAngle = newHeading;
+        }
       }
     }
   }

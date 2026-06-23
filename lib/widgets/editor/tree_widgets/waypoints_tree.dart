@@ -3,6 +3,7 @@ import 'package:pathplanner/path/constraints_zone.dart';
 import 'package:pathplanner/path/event_marker.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/waypoint.dart';
+import 'package:pathplanner/pages/project/project_page.dart';
 import 'package:pathplanner/services/physics_sim_service.dart';
 import 'package:pathplanner/services/save_service.dart';
 import 'package:pathplanner/pages/controller_settings_page.dart';
@@ -236,7 +237,33 @@ class _WaypointsTreeState extends State<WaypointsTree> {
             child: IconButton(
               onPressed: () {
                 setState(() {
-                  waypoint.isLocked = !waypoint.isLocked;
+                  // If this waypoint is linked, propagate the lock state to
+                  // all instances of the same linked waypoint name in the
+                  // current path so locking is consistent across instances.
+                  if (waypoint.linkedName != null) {
+                    final String name = waypoint.linkedName!;
+                    final bool newVal = !waypoint.isLocked;
+
+                    // Update waypoints in the current path
+                    for (final w in waypoints) {
+                      if (w.linkedName == name) {
+                        w.isLocked = newVal;
+                      }
+                    }
+
+                    // Also propagate lock state across all loaded paths in the
+                    // ProjectPage so linked waypoints remain consistent between
+                    // files.
+                    for (final path in ProjectPage.allPaths) {
+                      for (final w in path.waypoints) {
+                        if (w.linkedName == name) {
+                          w.isLocked = newVal;
+                        }
+                      }
+                    }
+                  } else {
+                    waypoint.isLocked = !waypoint.isLocked;
+                  }
                 });
                 widget.onPathChanged?.call();
               },
@@ -264,7 +291,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
               message: 'Delete Waypoint',
               waitDuration: const Duration(seconds: 1),
               child: IconButton(
-                onPressed: () => widget.onWaypointDeleted?.call(waypointIdx),
+                    onPressed: waypoint.isLocked ? null : () => widget.onWaypointDeleted?.call(waypointIdx),
                 icon: const Icon(Icons.delete_forever),
                 color: colorScheme.error,
               ),
@@ -280,6 +307,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                 child: NumberTextField(
                   initialValue: waypoint.anchor.x,
                   label: 'X Position (M)',
+                  enabled: !waypoint.isLocked,
                   onSubmitted: (value) {
                     if (value != null) {
                       Waypoint wRef = waypoints[waypointIdx];
@@ -297,6 +325,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                 child: NumberTextField(
                   initialValue: waypoint.anchor.y,
                   label: 'Y Position (M)',
+                  enabled: !waypoint.isLocked,
                   onSubmitted: (value) {
                     if (value != null) {
                       Waypoint wRef = waypoints[waypointIdx];
@@ -315,6 +344,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                   initialValue: waypoint.holonomicAngle.degrees,
                   label: 'Swerve Heading (Deg)',
                   arrowKeyIncrement: 1.0,
+                  enabled: !waypoint.isLocked,
                   onSubmitted: (value) {
                     if (value != null) {
                       Waypoint wRef = waypoints[waypointIdx];
@@ -340,6 +370,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                   child: NumberTextField(
                     initialValue: waypoint.tolerance,
                     label: 'Arrival Tolerance (M)',
+                    enabled: !waypoint.isLocked,
                     onSubmitted: (value) {
                       if (value != null) {
                         Waypoint wRef = waypoints[waypointIdx];
@@ -360,6 +391,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                   child: NumberTextField(
                     initialValue: waypoint.toleranceDeg,
                     label: 'Rotation Tolerance (Deg)',
+                    enabled: !waypoint.isLocked,
                     onSubmitted: (value) {
                       if (value != null) {
                         Waypoint wRef = waypoints[waypointIdx];
@@ -426,12 +458,14 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                         isExpanded: true,
                         hint: const Text('Select Controller Setting'),
                         items: items,
-                        onChanged: (value) {
-                          setState(() {
-                            waypoint.controllerSettingId = value;
-                          });
-                          widget.onPathChanged?.call();
-                        },
+                        onChanged: waypoint.isLocked
+                            ? null
+                            : (value) {
+                                setState(() {
+                                  waypoint.controllerSettingId = value;
+                                });
+                                widget.onPathChanged?.call();
+                              },
                       );
                     }),
                   ),
@@ -479,7 +513,9 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                 Tooltip(
                   message: 'Create New Waypoint After',
                   child: IconButton(
-                    onPressed: () {
+                        onPressed: waypoint.isLocked
+                            ? null
+                            : () {
                       widget.undoStack.add(Change(
                         [
                           PathPlannerPath.cloneWaypoints(widget.path.waypoints),
@@ -518,7 +554,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                 Tooltip(
                   message: 'Link Waypoint',
                   child: IconButton(
-                    onPressed: () => _showLinkedDialog(waypointIdx),
+                    onPressed: waypoint.isLocked ? null : () => _showLinkedDialog(waypointIdx),
                     icon: const Icon(Icons.add_link_rounded, size: 20),
                   ),
                 ),
@@ -526,13 +562,15 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                 Tooltip(
                   message: 'Unlink Waypoint',
                   child: IconButton(
-                    onPressed: () {
-                      widget.undoStack.add(_waypointChange(waypoint, () {
-                        waypoint.linkedName = null;
-                      }, (oldVal) {
-                        waypoint.linkedName = oldVal.linkedName;
-                      }));
-                    },
+                    onPressed: waypoint.isLocked
+                        ? null
+                        : () {
+                            widget.undoStack.add(_waypointChange(waypoint, () {
+                              waypoint.linkedName = null;
+                            }, (oldVal) {
+                              waypoint.linkedName = oldVal.linkedName;
+                            }));
+                          },
                     icon: const Icon(Icons.link_off, size: 20),
                   ),
                 ),

@@ -31,6 +31,13 @@ import 'package:watcher/watcher.dart';
 
 class ProjectPage extends StatefulWidget {
   static Set<String> events = {};
+  // Holds a reference to the active ProjectPage state so other widgets can
+  // query the currently loaded paths (used for linking/locking behavior).
+  static _ProjectPageState? _instance;
+
+  /// Returns the list of currently loaded paths, or an empty list if the
+  /// ProjectPage is not initialized.
+  static List<PathPlannerPath> get allPaths => _instance?._paths ?? [];
 
   final SharedPreferences prefs;
   final FieldImage fieldImage;
@@ -109,6 +116,11 @@ class _ProjectPageState extends State<ProjectPage> {
   void initState() {
     super.initState();
 
+    // Register this state instance so other parts of the app can access
+    // the loaded paths when needed (e.g., locking linked waypoints across
+    // multiple paths).
+    ProjectPage._instance = this;
+
     _pathSearchController = TextEditingController();
     _autoSearchController = TextEditingController();
 
@@ -179,6 +191,9 @@ class _ProjectPageState extends State<ProjectPage> {
 
     _pathSearchController.dispose();
     _autoSearchController.dispose();
+    // Clear the global instance reference.
+    if (ProjectPage._instance == this) ProjectPage._instance = null;
+
     super.dispose();
   }
 
