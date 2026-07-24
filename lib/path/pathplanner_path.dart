@@ -164,8 +164,8 @@ class PathPlannerPath {
           folder: json['folder'],
           idealStartingState:
               IdealStartingState.fromJson(json['idealStartingState'] ?? {}),
-      useDefaultConstraints: json['useDefaultConstraints'] ?? false,
-      controllerSettings: List.of(ControllerSettingsStore.settings),
+          useDefaultConstraints: json['useDefaultConstraints'] ?? false,
+          controllerSettings: List.of(ControllerSettingsStore.settings),
         );
 
   void generateAndSavePath() {
@@ -274,6 +274,7 @@ class PathPlannerPath {
       Waypoint(
         anchor: anchorPos,
         holonomicAngle: prev.holonomicAngle,
+        headingStratId: prev.headingStratId,
       ),
     );
   }
@@ -292,6 +293,7 @@ class PathPlannerPath {
       holonomicAngle: before.holonomicAngle,
       tolerance: before.tolerance,
       toleranceDeg: before.toleranceDeg,
+      headingStratId: before.headingStratId,
     );
 
     waypoints.insert(waypointIdx + 1, toAdd);

@@ -439,8 +439,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   hotReload: _hotReload,
                   onFoldersChanged: () =>
                       _saveProjectSettingsToFile(_projectDir!),
-          onProjectSettingsChanged: () =>
-            _saveProjectSettingsToFile(_projectDir!),
+                  onProjectSettingsChanged: () =>
+                      _saveProjectSettingsToFile(_projectDir!),
                   simulatePath: true,
                   watchChorDir: true,
                 ),
@@ -580,7 +580,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ?.map((e) => e as String)
                 .toList() ??
             Defaults.robotFeatures);
-  ControllerSettingsStore.loadFromJson(json[PrefsKeys.controllerSettings]);
+    ControllerSettingsStore.loadFromJson(json[PrefsKeys.controllerSettings]);
+    HeadingStratsStore.loadFromJson(json[PrefsKeys.headingStrats]);
   }
 
   void _setPrefDoubleFromJSON(
@@ -673,7 +674,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       PrefsKeys.robotFeatures:
           widget.prefs.getStringList(PrefsKeys.robotFeatures) ??
               Defaults.robotFeatures,
-    PrefsKeys.controllerSettings: ControllerSettingsStore.toJson(),
+      PrefsKeys.controllerSettings: ControllerSettingsStore.toJson(),
+      PrefsKeys.headingStrats: HeadingStratsStore.toJson(),
     };
 
     settingsFile.writeAsString(encoder.convert(settings)).then((_) {

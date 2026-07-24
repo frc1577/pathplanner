@@ -17,6 +17,7 @@ class Waypoint {
   bool isLocked;
   String? linkedName;
   String? controllerSettingId; // Reference to a controller setting
+  String? headingStratId;
 
   bool _isAnchorDragging = false;
   bool _isHeadingDragging = false;
@@ -32,6 +33,7 @@ class Waypoint {
     this.isLocked = false,
     this.linkedName,
     this.controllerSettingId,
+    this.headingStratId,
   }) : holonomicAngle = holonomicAngle ?? const Rotation2d();
 
   bool get isAnchorDragging => _isAnchorDragging;
@@ -50,6 +52,7 @@ class Waypoint {
           isLocked: json['isLocked'] ?? false,
           linkedName: json['linkedName'],
           controllerSettingId: json['controllerSettingId'],
+          headingStratId: json['headingStratId'],
         );
 
   static Rotation2d _holonomicAngleFromJson(Map<String, dynamic> json) {
@@ -84,6 +87,7 @@ class Waypoint {
       'isLocked': isLocked,
       'linkedName': linkedName,
       'controllerSettingId': controllerSettingId,
+      'headingStratId': headingStratId,
     };
   }
 
@@ -112,6 +116,7 @@ class Waypoint {
       isLocked: isLocked,
       linkedName: linkedName,
       controllerSettingId: controllerSettingId,
+      headingStratId: headingStratId,
     );
   }
 
@@ -122,7 +127,8 @@ class Waypoint {
   }
 
   Translation2d headingHandlePosition() {
-    return anchor + Translation2d.fromAngle(headingHandleLength, holonomicAngle);
+    return anchor +
+        Translation2d.fromAngle(headingHandleLength, holonomicAngle);
   }
 
   bool isPointInAnchor(num xPos, num yPos, num radius) {
@@ -149,7 +155,8 @@ class Waypoint {
     } else if (_isHeadingDragging) {
       // Do not allow interactive heading changes when waypoint is locked
       if (!isLocked) {
-        Rotation2d newHeading = Rotation2d.fromComponents(x - anchor.x, y - anchor.y);
+        Rotation2d newHeading =
+            Rotation2d.fromComponents(x - anchor.x, y - anchor.y);
         if (newHeading.radians.isFinite) {
           holonomicAngle = newHeading;
         }
@@ -171,12 +178,13 @@ class Waypoint {
       other.kp == kp &&
       other.ki == ki &&
       other.kd == kd &&
-  other.tolerance == tolerance &&
-  other.toleranceDeg == toleranceDeg &&
+      other.tolerance == tolerance &&
+      other.toleranceDeg == toleranceDeg &&
       other.linkedName == linkedName &&
-      other.controllerSettingId == controllerSettingId;
+      other.controllerSettingId == controllerSettingId &&
+      other.headingStratId == headingStratId;
 
   @override
-  int get hashCode => Object.hash(
-    anchor, holonomicAngle, kp, ki, kd, tolerance, toleranceDeg, linkedName, controllerSettingId);
+  int get hashCode => Object.hash(anchor, holonomicAngle, kp, ki, kd, tolerance,
+      toleranceDeg, linkedName, controllerSettingId, headingStratId);
 }

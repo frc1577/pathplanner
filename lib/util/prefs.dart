@@ -51,6 +51,7 @@ class PrefsKeys {
   static const String bumperOffsetY = 'bumperOffsetY';
   static const String robotFeatures = 'robotFeatures';
   static const String controllerSettings = 'controllerSettings';
+  static const String headingStrats = 'headingStrats';
 }
 
 class Defaults {

@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:pathplanner/controllers/profiled_pid_controller.dart';
+import 'package:pathplanner/path/heading_strat.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/util/wpimath/geometry.dart';
@@ -39,8 +40,7 @@ class PhysicsSimulationResult {
 
   const PhysicsSimulationResult(this.states);
 
-  num get totalTimeSeconds =>
-      states.isEmpty ? 0.0 : states.last.timeSeconds;
+  num get totalTimeSeconds => states.isEmpty ? 0.0 : states.last.timeSeconds;
 
   PhysicsSimState sample(num timeSeconds) {
     if (states.isEmpty) {
@@ -63,7 +63,8 @@ class PhysicsSimulationResult {
       if (timeSeconds >= states[i].timeSeconds &&
           timeSeconds <= states[i + 1].timeSeconds) {
         final span = states[i + 1].timeSeconds - states[i].timeSeconds;
-        final t = span == 0 ? 0.0 : (timeSeconds - states[i].timeSeconds) / span;
+        final t =
+            span == 0 ? 0.0 : (timeSeconds - states[i].timeSeconds) / span;
         return states[i].lerp(states[i + 1], t.toDouble());
       }
     }
@@ -73,8 +74,8 @@ class PhysicsSimulationResult {
 }
 
 class ModuleState {
-  double angle;         // Radians
-  double velocity;      // Meters per Second
+  double angle; // Radians
+  double velocity; // Meters per Second
   double steerVelocity; // Radians per Second
 
   ModuleState(this.angle, this.velocity, this.steerVelocity);
@@ -82,26 +83,28 @@ class ModuleState {
 
 class PhysicsSimService {
   // --- LINEAR DRIVE MOTOR CONSTANTS (Directly from driveGains) ---
-  static const double kSDrive = 0.18483;  // Volts to overcome static friction
-  static const double kVDrive = 0.12462;  // Volts per meter/second
-  static const double kADrive = 0.01430;  // Volts per meter/second^2
-  static const double driveKP = 0.18945;  // Volts per meter/second error
+  static const double kSDrive = 0.18483; // Volts to overcome static friction
+  static const double kVDrive = 0.12462; // Volts per meter/second
+  static const double kADrive = 0.01430; // Volts per meter/second^2
+  static const double driveKP = 0.18945; // Volts per meter/second error
 
   // --- AZIMUTH STEER MOTOR CONSTANTS (Converted from Rotations to Radians) ---
   static const double kSSteer = 0.23000;
-  static const double kVSteer = 2.53060 / (2 * pi);  
-  static const double kASteer = 0.046861 / (2 * pi); 
-  static const double steerKP = 56.25800 / (2 * pi); 
-  static const double steerKD = 3.34950 / (2 * pi);  
+  static const double kVSteer = 2.53060 / (2 * pi);
+  static const double kASteer = 0.046861 / (2 * pi);
+  static const double steerKP = 56.25800 / (2 * pi);
+  static const double steerKD = 3.34950 / (2 * pi);
 
-  static const double maxVoltage = 12.0; 
+  static const double maxVoltage = 12.0;
 
   // Module Layout Coordinates converted from Inches to Meters (Inches * 0.0254)
   static const List<Translation2d> moduleOffsets = [
-    Translation2d(9.18602362205 * 0.0254, 12.8868110236 * 0.0254),   // Front Left
-    Translation2d(9.18602362205 * 0.0254, -12.8868110236 * 0.0254),  // Front Right
-    Translation2d(-9.18602362205 * 0.0254, 12.8868110236 * 0.0254),  // Back Left
-    Translation2d(-9.18602362205 * 0.0254, -12.8868110236 * 0.0254), // Back Right
+    Translation2d(9.18602362205 * 0.0254, 12.8868110236 * 0.0254), // Front Left
+    Translation2d(
+        9.18602362205 * 0.0254, -12.8868110236 * 0.0254), // Front Right
+    Translation2d(-9.18602362205 * 0.0254, 12.8868110236 * 0.0254), // Back Left
+    Translation2d(
+        -9.18602362205 * 0.0254, -12.8868110236 * 0.0254), // Back Right
   ];
 
   /// Simulates open-loop trajectory generation tracking using 4-Module Kinematic Projection
@@ -121,7 +124,8 @@ class PhysicsSimService {
     double vy = 0.0;
     double omega = 0.0;
 
-    List<ModuleState> modules = List.generate(4, (_) => ModuleState(theta, 0.0, 0.0));
+    List<ModuleState> modules =
+        List.generate(4, (_) => ModuleState(theta, 0.0, 0.0));
 
     states.add(PhysicsSimState(
       timeSeconds: time,
@@ -140,10 +144,11 @@ class PhysicsSimService {
         continue;
       }
 
-      final Translation2d direction =
-          Translation2d(segmentVector.x / segmentLength, segmentVector.y / segmentLength);
+      final Translation2d direction = Translation2d(
+          segmentVector.x / segmentLength, segmentVector.y / segmentLength);
 
-      final ControllerSetting? startSettings = _getControllerSettingsById(path, start.controllerSettingId);
+      final ControllerSetting? startSettings =
+          _getControllerSettingsById(path, start.controllerSettingId);
 
       final num cruiseVelocity = max(0.0, startSettings?.cruiseVelocity ?? 2.0);
       final num maxAccel = max(1e-6, startSettings?.maxAcceleration ?? 1.0);
@@ -155,27 +160,43 @@ class PhysicsSimService {
       int steps = 0;
 
       while (true) {
-        double currentDistanceToEnd = sqrt(pow(end.anchor.x - x, 2) + pow(end.anchor.y - y, 2));
-        double headingErrorAbs = _normalizeAngle(targetHeading.radians - theta).abs().toDouble();
-        if (currentDistanceToEnd <= tolerance && headingErrorAbs <= rotToleranceRad) {
+        double currentDistanceToEnd =
+            sqrt(pow(end.anchor.x - x, 2) + pow(end.anchor.y - y, 2));
+        double headingErrorAbs =
+            _normalizeAngle(targetHeading.radians - theta).abs().toDouble();
+        if (currentDistanceToEnd <= tolerance &&
+            headingErrorAbs <= rotToleranceRad) {
           break;
         }
 
-        final num remainingDistance = max(0.0, segmentLength - sqrt(pow(x - start.anchor.x, 2) + pow(y - start.anchor.y, 2)));
-        final num stopVelocity = sqrt(max(0.0, pow(cruiseVelocity, 2) + 2 * maxAccel * remainingDistance));
+        final num remainingDistance = max(
+            0.0,
+            segmentLength -
+                sqrt(pow(x - start.anchor.x, 2) + pow(y - start.anchor.y, 2)));
+        final num stopVelocity = sqrt(max(
+            0.0, pow(cruiseVelocity, 2) + 2 * maxAccel * remainingDistance));
         final num desiredVelocity = min(cruiseVelocity, stopVelocity);
 
-        double nextVelocity = _stepVelocity(sqrt(vx * vx + vy * vy), desiredVelocity, maxAccel, dt).toDouble();
-        
-        double headingError = _normalizeAngle(targetHeading.radians - theta).toDouble();
-        final num headingStopVelocity = sqrt(max(0.0, 2 * maxAccel * headingError.abs()));
-        final num desiredHeadingVelocity = min(cruiseVelocity, headingStopVelocity);
-        double nextAngularVelocity = _stepVelocity(omega, desiredHeadingVelocity * headingError.sign, maxAccel, dt).toDouble();
+        double nextVelocity = _stepVelocity(
+                sqrt(vx * vx + vy * vy), desiredVelocity, maxAccel, dt)
+            .toDouble();
+
+        double headingError =
+            _normalizeAngle(targetHeading.radians - theta).toDouble();
+        final num headingStopVelocity =
+            sqrt(max(0.0, 2 * maxAccel * headingError.abs()));
+        final num desiredHeadingVelocity =
+            min(cruiseVelocity, headingStopVelocity);
+        double nextAngularVelocity = _stepVelocity(
+                omega, desiredHeadingVelocity * headingError.sign, maxAccel, dt)
+            .toDouble();
 
         double targetFieldVx = nextVelocity * direction.x;
         double targetFieldVy = nextVelocity * direction.y;
-        double robotVx = targetFieldVx * cos(theta) + targetFieldVy * sin(theta);
-        double robotVy = -targetFieldVx * sin(theta) + targetFieldVy * cos(theta);
+        double robotVx =
+            targetFieldVx * cos(theta) + targetFieldVy * sin(theta);
+        double robotVy =
+            -targetFieldVx * sin(theta) + targetFieldVy * cos(theta);
 
         // 1. INVERSE KINEMATICS
         List<ModuleState> targetModuleStates = [];
@@ -187,15 +208,19 @@ class PhysicsSimService {
           double moduleVy = robotVy + rotVy;
 
           double speed = sqrt(moduleVx * moduleVx + moduleVy * moduleVy);
-          double angle = speed > 1e-4 ? atan2(moduleVy, moduleVx) : modules[m].angle;
+          double angle =
+              speed > 1e-4 ? atan2(moduleVy, moduleVx) : modules[m].angle;
           targetModuleStates.add(ModuleState(angle, speed, 0.0));
         }
 
         // 2. WHEEL HEDING OPTIMIZATION (Run once per frame to eliminate direction flip loops)
         for (int m = 0; m < 4; m++) {
-          double angleError = _normalizeAngle(targetModuleStates[m].angle - modules[m].angle).toDouble();
+          double angleError =
+              _normalizeAngle(targetModuleStates[m].angle - modules[m].angle)
+                  .toDouble();
           if (angleError.abs() > pi / 2) {
-            targetModuleStates[m].angle = _normalizeAngle(targetModuleStates[m].angle + pi).toDouble();
+            targetModuleStates[m].angle =
+                _normalizeAngle(targetModuleStates[m].angle + pi).toDouble();
             targetModuleStates[m].velocity *= -1;
           }
         }
@@ -207,20 +232,34 @@ class PhysicsSimService {
         for (int step = 0; step < subSteps; step++) {
           for (int m = 0; m < 4; m++) {
             // Steer Controller Loop
-            double subAngleError = _normalizeAngle(targetModuleStates[m].angle - modules[m].angle).toDouble();
-            double steerVolts = (subAngleError * steerKP) + (0.0 - modules[m].steerVelocity) * steerKD + (kSSteer * subAngleError.sign);
+            double subAngleError =
+                _normalizeAngle(targetModuleStates[m].angle - modules[m].angle)
+                    .toDouble();
+            double steerVolts = (subAngleError * steerKP) +
+                (0.0 - modules[m].steerVelocity) * steerKD +
+                (kSSteer * subAngleError.sign);
             steerVolts = steerVolts.clamp(-maxVoltage, maxVoltage);
 
-            double steerAlpha = (steerVolts - (kSSteer * modules[m].steerVelocity.sign) - (kVSteer * modules[m].steerVelocity)) / kASteer;
-            modules[m].angle += modules[m].steerVelocity * subDt + 0.5 * steerAlpha * subDt * subDt;
+            double steerAlpha = (steerVolts -
+                    (kSSteer * modules[m].steerVelocity.sign) -
+                    (kVSteer * modules[m].steerVelocity)) /
+                kASteer;
+            modules[m].angle += modules[m].steerVelocity * subDt +
+                0.5 * steerAlpha * subDt * subDt;
             modules[m].steerVelocity += steerAlpha * subDt;
             modules[m].angle = _normalizeAngle(modules[m].angle).toDouble();
 
             // Drive Controller Loop
-            double driveVolts = (targetModuleStates[m].velocity * kVDrive) + (kSDrive * targetModuleStates[m].velocity.sign) + (targetModuleStates[m].velocity - modules[m].velocity) * driveKP;
+            double driveVolts = (targetModuleStates[m].velocity * kVDrive) +
+                (kSDrive * targetModuleStates[m].velocity.sign) +
+                (targetModuleStates[m].velocity - modules[m].velocity) *
+                    driveKP;
             driveVolts = driveVolts.clamp(-maxVoltage, maxVoltage);
 
-            double driveAx = (driveVolts - (kSDrive * modules[m].velocity.sign) - (kVDrive * modules[m].velocity)) / kADrive;
+            double driveAx = (driveVolts -
+                    (kSDrive * modules[m].velocity.sign) -
+                    (kVDrive * modules[m].velocity)) /
+                kADrive;
             modules[m].velocity += driveAx * subDt;
           }
         }
@@ -244,7 +283,8 @@ class PhysicsSimService {
 
         netRobotVx /= 4.0;
         netRobotVy /= 4.0;
-        double radiusSqSum = moduleOffsets.fold(0.0, (sum, item) => sum + (item.norm * item.norm));
+        double radiusSqSum = moduleOffsets.fold(
+            0.0, (sum, item) => sum + (item.norm * item.norm));
         omega = netOmegaSum / radiusSqSum;
 
         vx = netRobotVx * cos(theta) - netRobotVy * sin(theta);
@@ -283,7 +323,7 @@ class PhysicsSimService {
 
     List<PhysicsSimState> simulatedPath = [];
     num time = 0.0;
-    
+
     double x = path.waypoints.first.anchor.x.toDouble();
     double y = path.waypoints.first.anchor.y.toDouble();
     double theta = path.waypoints.first.holonomicAngle.radians.toDouble();
@@ -291,7 +331,8 @@ class PhysicsSimService {
     double vy = 0.0;
     double omega = 0.0;
 
-    List<ModuleState> modules = List.generate(4, (_) => ModuleState(theta, 0.0, 0.0));
+    List<ModuleState> modules =
+        List.generate(4, (_) => ModuleState(theta, 0.0, 0.0));
 
     final Waypoint first = path.waypoints.first;
 
@@ -303,10 +344,14 @@ class PhysicsSimService {
     ));
 
     ProfiledPIDController rotationalController = ProfiledPIDController(
-      5, 0, 0, Constraints(3.0, maxAcceleration),
+      5,
+      0,
+      0,
+      Constraints(3.0, maxAcceleration),
     );
 
-    final ControllerSetting? controllerSettings = _getControllerSettingsById(path, first.controllerSettingId);
+    final ControllerSetting? controllerSettings =
+        _getControllerSettingsById(path, first.controllerSettingId);
 
     ProfiledPIDController xController = ProfiledPIDController(
       controllerSettings?.kp ?? first.kp.toDouble(),
@@ -329,15 +374,18 @@ class PhysicsSimService {
 
     xController.reset(State(x, 0.0));
     yController.reset(State(y, 0.0));
-  rotationalController.enableContinuousInput(-pi, pi);
-  rotationalController.reset(State(theta, 0.0));
+    rotationalController.enableContinuousInput(-pi, pi);
+    rotationalController.reset(State(theta, 0.0));
 
     xController.setGoal(State(x, 0.0));
     yController.setGoal(State(y, 0.0));
 
     for (int i = 0; i < path.waypoints.length - 1; i++) {
       final Waypoint end = path.waypoints[i + 1];
-      final ControllerSetting? currentSettings = _getControllerSettingsById(path, end.controllerSettingId);
+      final ControllerSetting? currentSettings =
+          _getControllerSettingsById(path, end.controllerSettingId);
+      final HeadingStrat? headingStrat =
+          _getHeadingStratById(end.headingStratId);
 
       xController.setPID(
         currentSettings?.kp ?? end.kp.toDouble(),
@@ -370,12 +418,26 @@ class PhysicsSimService {
 
       xController.setGoal(State(end.anchor.x.toDouble(), 0.0));
       yController.setGoal(State(end.anchor.y.toDouble(), 0.0));
-      rotationalController.setGoal(State(end.holonomicAngle.radians.toDouble(), 0.0));
 
-  final num rotToleranceDeg2 = max(0.0, end.toleranceDeg);
-  final double rotToleranceRad2 = (rotToleranceDeg2 * pi / 180.0).toDouble();
+      final num rotToleranceDeg2 = max(0.0, end.toleranceDeg);
+      final double rotToleranceRad2 =
+          (rotToleranceDeg2 * pi / 180.0).toDouble();
 
-  while (sqrt(pow(end.anchor.x - x, 2) + pow(end.anchor.y - y, 2)) > end.tolerance || (_normalizeAngle(end.holonomicAngle.radians - theta).abs().toDouble() > rotToleranceRad2)) {
+      Rotation2d resolveTargetHeading() {
+        return headingStrat?.resolveHeading(Translation2d(x, y)) ??
+            end.holonomicAngle;
+      }
+
+      while (sqrt(pow(end.anchor.x - x, 2) + pow(end.anchor.y - y, 2)) >
+              end.tolerance ||
+          (_normalizeAngle(resolveTargetHeading().radians - theta)
+                  .abs()
+                  .toDouble() >
+              rotToleranceRad2)) {
+        final Rotation2d targetHeading = resolveTargetHeading();
+        rotationalController
+            .setGoal(State(targetHeading.radians.toDouble(), 0.0));
+
         double targetVx = xController.calculate(x);
         double targetVy = yController.calculate(y);
         double targetOmega = rotationalController.calculate(theta);
@@ -393,15 +455,19 @@ class PhysicsSimService {
           double moduleVy = robotVy + rotVy;
 
           double speed = sqrt(moduleVx * moduleVx + moduleVy * moduleVy);
-          double angle = speed > 1e-4 ? atan2(moduleVy, moduleVx) : modules[m].angle;
+          double angle =
+              speed > 1e-4 ? atan2(moduleVy, moduleVx) : modules[m].angle;
           targetModuleStates.add(ModuleState(angle, speed, 0.0));
         }
 
         // 2. WHEEL HEADING OPTIMIZATION
         for (int m = 0; m < 4; m++) {
-          double angleError = _normalizeAngle(targetModuleStates[m].angle - modules[m].angle).toDouble();
+          double angleError =
+              _normalizeAngle(targetModuleStates[m].angle - modules[m].angle)
+                  .toDouble();
           if (angleError.abs() > pi / 2) {
-            targetModuleStates[m].angle = _normalizeAngle(targetModuleStates[m].angle + pi).toDouble();
+            targetModuleStates[m].angle =
+                _normalizeAngle(targetModuleStates[m].angle + pi).toDouble();
             targetModuleStates[m].velocity *= -1;
           }
         }
@@ -413,20 +479,34 @@ class PhysicsSimService {
         for (int step = 0; step < subSteps; step++) {
           for (int m = 0; m < 4; m++) {
             // Steer Controller Loop
-            double subAngleError = _normalizeAngle(targetModuleStates[m].angle - modules[m].angle).toDouble();
-            double steerVolts = (subAngleError * steerKP) + (0.0 - modules[m].steerVelocity) * steerKD + (kSSteer * subAngleError.sign);
+            double subAngleError =
+                _normalizeAngle(targetModuleStates[m].angle - modules[m].angle)
+                    .toDouble();
+            double steerVolts = (subAngleError * steerKP) +
+                (0.0 - modules[m].steerVelocity) * steerKD +
+                (kSSteer * subAngleError.sign);
             steerVolts = steerVolts.clamp(-maxVoltage, maxVoltage);
 
-            double steerAlpha = (steerVolts - (kSSteer * modules[m].steerVelocity.sign) - (kVSteer * modules[m].steerVelocity)) / kASteer;
-            modules[m].angle += modules[m].steerVelocity * subDt + 0.5 * steerAlpha * subDt * subDt;
+            double steerAlpha = (steerVolts -
+                    (kSSteer * modules[m].steerVelocity.sign) -
+                    (kVSteer * modules[m].steerVelocity)) /
+                kASteer;
+            modules[m].angle += modules[m].steerVelocity * subDt +
+                0.5 * steerAlpha * subDt * subDt;
             modules[m].steerVelocity += steerAlpha * subDt;
             modules[m].angle = _normalizeAngle(modules[m].angle).toDouble();
 
             // Drive Controller Loop
-            double driveVolts = (targetModuleStates[m].velocity * kVDrive) + (kSDrive * targetModuleStates[m].velocity.sign) + (targetModuleStates[m].velocity - modules[m].velocity) * driveKP;
+            double driveVolts = (targetModuleStates[m].velocity * kVDrive) +
+                (kSDrive * targetModuleStates[m].velocity.sign) +
+                (targetModuleStates[m].velocity - modules[m].velocity) *
+                    driveKP;
             driveVolts = driveVolts.clamp(-maxVoltage, maxVoltage);
 
-            double driveAx = (driveVolts - (kSDrive * modules[m].velocity.sign) - (kVDrive * modules[m].velocity)) / kADrive;
+            double driveAx = (driveVolts -
+                    (kSDrive * modules[m].velocity.sign) -
+                    (kVDrive * modules[m].velocity)) /
+                kADrive;
             modules[m].velocity += driveAx * subDt;
           }
         }
@@ -450,7 +530,8 @@ class PhysicsSimService {
 
         netRobotVx /= 4.0;
         netRobotVy /= 4.0;
-        double radiusSqSum = moduleOffsets.fold(0.0, (sum, item) => sum + (item.norm * item.norm));
+        double radiusSqSum = moduleOffsets.fold(
+            0.0, (sum, item) => sum + (item.norm * item.norm));
         omega = netOmegaSum / radiusSqSum;
 
         vx = netRobotVx * cos(theta) - netRobotVy * sin(theta);
@@ -499,11 +580,22 @@ class PhysicsSimService {
     return angle;
   }
 
-  static ControllerSetting? _getControllerSettingsById(PathPlannerPath path, String? id) {
+  static ControllerSetting? _getControllerSettingsById(
+      PathPlannerPath path, String? id) {
     if (id == null) return null;
 
     for (final s in ControllerSettingsStore.settings) {
       if (s.id == id) return s;
+    }
+
+    return null;
+  }
+
+  static HeadingStrat? _getHeadingStratById(String? id) {
+    if (id == null) return null;
+
+    for (final headingStrat in HeadingStratsStore.settings) {
+      if (headingStrat.id == id) return headingStrat;
     }
 
     return null;
@@ -573,6 +665,43 @@ class ControllerSettingsStore {
         angularMaxAcceleration: 3.0,
       ),
     ];
+  }
+}
+
+class HeadingStratsStore {
+  static List<HeadingStrat> _headingStrats = _defaultHeadingStrats();
+
+  static List<HeadingStrat> get settings => List.unmodifiable(_headingStrats);
+
+  static void setSettings(List<HeadingStrat> headingStrats) {
+    _headingStrats = List.of(headingStrats);
+  }
+
+  static void loadFromJson(dynamic json) {
+    if (json is List) {
+      final parsed = <HeadingStrat>[];
+      for (final entry in json) {
+        if (entry is Map<String, dynamic>) {
+          parsed.add(HeadingStrat.fromJson(entry));
+        } else if (entry is Map) {
+          parsed.add(HeadingStrat.fromJson(
+              entry.map((key, value) => MapEntry(key.toString(), value))));
+        }
+      }
+
+      _headingStrats = parsed;
+      return;
+    }
+
+    _headingStrats = _defaultHeadingStrats();
+  }
+
+  static List<Map<String, dynamic>> toJson() {
+    return [for (final headingStrat in _headingStrats) headingStrat.toJson()];
+  }
+
+  static List<HeadingStrat> _defaultHeadingStrats() {
+    return [];
   }
 }
 
