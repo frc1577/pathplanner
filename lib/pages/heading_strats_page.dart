@@ -30,6 +30,7 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
               'targetX': strat.targetX,
               'targetY': strat.targetY,
               'offsetDeg': strat.offsetDeg,
+              'falseDegrees': strat.falseDegrees,
               'condition': strat.condition,
             })
         .toList(growable: true);
@@ -45,6 +46,7 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
         'targetX': 0.0,
         'targetY': 0.0,
         'offsetDeg': 0.0,
+        'falseDegrees': 0.0,
         'condition': '',
       });
       _notifyChanged();
@@ -69,6 +71,7 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
           targetX: (entry['targetX'] as num).toDouble(),
           targetY: (entry['targetY'] as num).toDouble(),
           offsetDeg: (entry['offsetDeg'] as num).toDouble(),
+          falseDegrees: (entry['falseDegrees'] as num).toDouble(),
           condition: entry['condition'].toString(),
         ),
     ]);
@@ -96,6 +99,7 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
                     targetX: (entry['targetX'] as num).toDouble(),
                     targetY: (entry['targetY'] as num).toDouble(),
                     offsetDeg: (entry['offsetDeg'] as num).toDouble(),
+                    falseDegrees: (entry['falseDegrees'] as num).toDouble(),
                     condition: entry['condition'].toString(),
                   ),
               ];
@@ -175,7 +179,7 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
                     const SizedBox(height: 8),
                     _NumberFormField(
                       initialValue: (strat['degrees'] as num).toDouble(),
-                      label: 'Heading (Deg)',
+                      label: 'Heading when true (Deg)',
                       onChanged: (value) {
                         setState(() {
                           strat['degrees'] = value;
@@ -229,11 +233,23 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
                   ],
                   if (needsCondition) ...[
                     const SizedBox(height: 8),
+                    _NumberFormField(
+                      initialValue:
+                          (strat['falseDegrees'] as num).toDouble(),
+                      label: 'Heading when False (Deg)',
+                      onChanged: (value) {
+                        setState(() {
+                          strat['falseDegrees'] = value;
+                          _notifyChanged();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
                     TextFormField(
                       initialValue: strat['condition']?.toString(),
                       decoration: const InputDecoration(
                         labelText: 'Condition',
-                        hintText: 'Leave blank until implemented',
+                        hintText: 'robotPose > 5.5 && robotPose < 7',
                       ),
                       onChanged: (value) {
                         setState(() {
