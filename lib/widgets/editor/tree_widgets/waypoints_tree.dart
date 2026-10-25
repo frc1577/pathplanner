@@ -585,6 +585,10 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                                     widget.path.constraintZones),
                                 PathPlannerPath.cloneEventMarkers(
                                     widget.path.eventMarkers),
+                                [
+                                  for (final strat in HeadingStratsStore.settings)
+                                    strat.clone(),
+                                ],
                               ],
                               () {
                                 widget.path.insertWaypointAfter(waypointIdx);
@@ -604,6 +608,11 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                                 widget.path.eventMarkers =
                                     PathPlannerPath.cloneEventMarkers(
                                         oldValue[2] as List<EventMarker>);
+                                HeadingStratsStore.setSettings([
+                                  for (final strat
+                                      in oldValue[3] as List<HeadingStrat>)
+                                    strat.clone(),
+                                ]);
 
                                 widget.onPathChanged?.call();
                               },

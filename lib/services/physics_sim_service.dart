@@ -674,6 +674,29 @@ class HeadingStratsStore {
 
   static List<HeadingStrat> get settings => List.unmodifiable(_headingStrats);
 
+  static String createSimpleHeadingStrat({
+    required double degrees,
+    required String pathName,
+    required int waypointNumber,
+  }) {
+    final id = '${DateTime.now().microsecondsSinceEpoch}_waypoint';
+    _headingStrats = [
+      ..._headingStrats,
+      HeadingStrat(
+        id: id,
+        name: '$pathName/Waypoint $waypointNumber/',
+        type: HeadingStratKinds.simple,
+        degrees: degrees,
+        targetX: 0.0,
+        targetY: 0.0,
+        offsetDeg: 0.0,
+        falseDegrees: 0.0,
+        condition: '',
+      ),
+    ];
+    return id;
+  }
+
   static void setSettings(List<HeadingStrat> headingStrats) {
     _headingStrats = List.of(headingStrats);
   }

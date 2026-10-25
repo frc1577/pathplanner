@@ -270,11 +270,16 @@ class PathPlannerPath {
 
   void addWaypoint(Translation2d anchorPos) {
     Waypoint prev = waypoints[waypoints.length - 1];
+    final heading = prev.holonomicAngle;
     waypoints.add(
       Waypoint(
         anchor: anchorPos,
-        holonomicAngle: prev.holonomicAngle,
-        headingStratId: prev.headingStratId,
+        holonomicAngle: heading,
+        headingStratId: HeadingStratsStore.createSimpleHeadingStrat(
+          degrees: heading.degrees.toDouble(),
+          pathName: name,
+          waypointNumber: waypoints.length + 1,
+        ),
       ),
     );
   }
@@ -293,7 +298,11 @@ class PathPlannerPath {
       holonomicAngle: before.holonomicAngle,
       tolerance: before.tolerance,
       toleranceDeg: before.toleranceDeg,
-      headingStratId: before.headingStratId,
+      headingStratId: HeadingStratsStore.createSimpleHeadingStrat(
+        degrees: before.holonomicAngle.degrees.toDouble(),
+        pathName: name,
+        waypointNumber: waypointIdx + 2,
+      ),
     );
 
     waypoints.insert(waypointIdx + 1, toAdd);
