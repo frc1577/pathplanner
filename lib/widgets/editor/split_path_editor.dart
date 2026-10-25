@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:multi_split_view/multi_split_view.dart';
 import 'package:pathplanner/path/constraints_zone.dart';
 import 'package:pathplanner/path/event_marker.dart';
+import 'package:pathplanner/path/heading_strat.dart';
 import 'package:pathplanner/path/path_constraints.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/waypoint.dart';
@@ -23,6 +24,13 @@ import 'package:pathplanner/widgets/field_image.dart';
 import 'package:pathplanner/util/path_painter_util.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:undo/undo.dart';
+
+class _WaypointHeadingChange {
+  final Waypoint waypoint;
+  final List<HeadingStrat> headingStrats;
+
+  _WaypointHeadingChange(this.waypoint, this.headingStrats);
+}
 
 class SplitPathEditor extends StatefulWidget {
   final SharedPreferences prefs;
@@ -85,6 +93,51 @@ class _SplitPathEditorState extends State<SplitPathEditor>
   List<Waypoint> get waypoints => widget.path.waypoints;
 
   RuntimeDisplay? _runtimeDisplay;
+
+  List<HeadingStrat> _cloneHeadingStrats() {
+    return [for (final strat in HeadingStratsStore.settings) strat.clone()];
+  }
+
+  void _restoreHeadingChange(_WaypointHeadingChange change, int index) {
+    waypoints[index] = change.waypoint.clone();
+    HeadingStratsStore.setSettings(
+        [for (final strat in change.headingStrats) strat.clone()]);
+  }
+
+  void _applyWaypointHeadingStrategy(Waypoint waypoint) {
+    HeadingStrat? current;
+    for (final strat in HeadingStratsStore.settings) {
+      if (strat.id == waypoint.headingStratId) {
+        current = strat;
+        break;
+      }
+    }
+
+    if (waypoint.headingStratId != null &&
+        current?.type != HeadingStratKinds.simple) {
+      return;
+    }
+
+    if (current == null) {
+      final id = '${DateTime.now().microsecondsSinceEpoch}_waypoint';
+      current = HeadingStrat(
+        id: id,
+        name: 'Waypoint Heading',
+        type: HeadingStratKinds.simple,
+        degrees: waypoint.holonomicAngle.degrees.toDouble(),
+        targetX: 0.0,
+        targetY: 0.0,
+        offsetDeg: 0.0,
+        falseDegrees: 0.0,
+        condition: '',
+      );
+      HeadingStratsStore.setSettings(
+          [...HeadingStratsStore.settings, current]);
+      waypoint.headingStratId = id;
+    } else {
+      current.degrees = waypoint.holonomicAngle.degrees.toDouble();
+    }
+  }
 
   @override
   void initState() {
@@ -321,16 +374,25 @@ class _SplitPathEditorState extends State<SplitPathEditor>
               },
               onPanEnd: (details) {
                 if (_draggedPoint != null) {
+                  final wasHeadingDragging = _draggedPoint!.isHeadingDragging;
                   _draggedPoint!.stopDragging();
                   int index = waypoints.indexOf(_draggedPoint!);
-                  Waypoint dragEnd = _draggedPoint!.clone();
+                  final oldHeadingChange = _WaypointHeadingChange(
+                    _dragOldValue!.clone(),
+                    _cloneHeadingStrats(),
+                  );
+                  if (wasHeadingDragging) {
+                    _applyWaypointHeadingStrategy(_draggedPoint!);
+                  }
+                  final newHeadingChange = _WaypointHeadingChange(
+                    _draggedPoint!.clone(),
+                    _cloneHeadingStrats(),
+                  );
                   widget.undoStack.add(Change(
-                    _dragOldValue,
+                    oldHeadingChange,
                     () {
                       setState(() {
-                        if (waypoints[index] != _draggedPoint) {
-                          waypoints[index] = dragEnd.clone();
-                        }
+                        _restoreHeadingChange(newHeadingChange, index);
                         widget.path.generateAndSavePath();
                         _simulatePath();
                         widget.onPathChanged?.call();
@@ -341,7 +403,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                     },
                     (oldValue) {
                       setState(() {
-                        waypoints[index] = oldValue!.clone();
+                        _restoreHeadingChange(oldValue, index);
                         widget.path.generateAndSavePath();
                         _simulatePath();
                         widget.onPathChanged?.call();
