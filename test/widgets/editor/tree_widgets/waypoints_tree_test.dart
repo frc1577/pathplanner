@@ -2,6 +2,7 @@ import 'package:file/memory.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pathplanner/path/heading_strat.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/services/physics_sim_service.dart';
@@ -32,6 +33,19 @@ void main() {
     deletedWaypoint = null;
     hoveredWaypoint = null;
     selectedWaypoint = null;
+    HeadingStratsStore.setSettings([
+      HeadingStrat(
+        id: 'test-heading',
+        name: 'Test Heading',
+        type: HeadingStratKinds.simple,
+        degrees: 45,
+        targetX: 0,
+        targetY: 0,
+        offsetDeg: 0,
+        falseDegrees: 0,
+        condition: '',
+      ),
+    ]);
   });
 
   testWidgets('tapping expands/collapses tree', (widgetTester) async {
@@ -278,7 +292,7 @@ void main() {
     expect(path.waypoints[1].anchor.y, oldVal);
   });
 
-  testWidgets('Heading text field', (widgetTester) async {
+  testWidgets('Heading strategy dropdown', (widgetTester) async {
     await widgetTester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: WaypointsTree(
@@ -294,23 +308,19 @@ void main() {
       ),
     ));
 
-  final textField =
-    find.widgetWithText(NumberTextField, 'Swerve Heading (Deg)');
+    final headingDropdown = find.ancestor(
+      of: find.text('Select Heading Strat'),
+      matching: find.byType(DropdownButton<String>),
+    );
+    expect(headingDropdown, findsOneWidget);
 
-    expect(textField, findsOneWidget);
-
-    final oldVal = path.waypoints[1].heading;
-
-    await widgetTester.enterText(textField, '0.1');
-    await widgetTester.testTextInput.receiveAction(TextInputAction.done);
-    await widgetTester.pump();
+    await widgetTester.tap(headingDropdown);
+    await widgetTester.pumpAndSettle();
+    await widgetTester.tap(find.text('Test Heading').last);
+    await widgetTester.pumpAndSettle();
 
     expect(pathChanged, true);
-    expect(path.waypoints[1].heading.degrees, closeTo(0.1, epsilon));
-
-    undoStack.undo();
-    await widgetTester.pump();
-    expect(path.waypoints[1].heading.degrees, closeTo(oldVal.degrees, epsilon));
+    expect(path.waypoints[1].headingStratId, 'test-heading');
   });
 
   testWidgets('Controller settings dropdown', (widgetTester) async {
@@ -333,7 +343,12 @@ void main() {
     expect(find.text('Select Controller Setting'), findsOneWidget);
 
     // Open the dropdown and select the first controller setting
-    await widgetTester.tap(find.byType(DropdownButton<String>));
+    final controllerDropdown = find.ancestor(
+      of: find.text('Select Controller Setting'),
+      matching: find.byType(DropdownButton<String>),
+    );
+    expect(controllerDropdown, findsOneWidget);
+    await widgetTester.tap(controllerDropdown);
     await widgetTester.pumpAndSettle();
 
     final settingName = ControllerSettingsStore.settings.first.name;
