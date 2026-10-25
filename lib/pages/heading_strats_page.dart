@@ -31,6 +31,7 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
               'targetY': strat.targetY,
               'offsetDeg': strat.offsetDeg,
               'falseDegrees': strat.falseDegrees,
+              'falseHeadingStratId': strat.falseHeadingStratId,
               'condition': strat.condition,
             })
         .toList(growable: true);
@@ -47,6 +48,7 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
         'targetY': 0.0,
         'offsetDeg': 0.0,
         'falseDegrees': 0.0,
+        'falseHeadingStratId': null,
         'condition': '',
       });
       _notifyChanged();
@@ -72,6 +74,7 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
           targetY: (entry['targetY'] as num).toDouble(),
           offsetDeg: (entry['offsetDeg'] as num).toDouble(),
           falseDegrees: (entry['falseDegrees'] as num).toDouble(),
+          falseHeadingStratId: entry['falseHeadingStratId']?.toString(),
           condition: entry['condition'].toString(),
         ),
     ]);
@@ -100,6 +103,8 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
                     targetY: (entry['targetY'] as num).toDouble(),
                     offsetDeg: (entry['offsetDeg'] as num).toDouble(),
                     falseDegrees: (entry['falseDegrees'] as num).toDouble(),
+                    falseHeadingStratId:
+                      entry['falseHeadingStratId']?.toString(),
                     condition: entry['condition'].toString(),
                   ),
               ];
@@ -233,13 +238,26 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
                   ],
                   if (needsCondition) ...[
                     const SizedBox(height: 8),
-                    _NumberFormField(
-                      initialValue:
-                          (strat['falseDegrees'] as num).toDouble(),
-                      label: 'Heading when False (Deg)',
+                    DropdownButtonFormField<String?>(
+                      value: strat['falseHeadingStratId'] as String?,
+                      decoration: const InputDecoration(
+                        labelText: 'Heading Strat when False',
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Use legacy false heading'),
+                        ),
+                        for (final candidate in _headingStrats)
+                          if (candidate['id'].toString() != strat['id'].toString())
+                            DropdownMenuItem<String?>(
+                              value: candidate['id'].toString(),
+                              child: Text(candidate['name'].toString()),
+                            ),
+                      ],
                       onChanged: (value) {
                         setState(() {
-                          strat['falseDegrees'] = value;
+                          strat['falseHeadingStratId'] = value;
                           _notifyChanged();
                         });
                       },
