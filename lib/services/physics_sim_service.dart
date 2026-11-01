@@ -424,8 +424,7 @@ class PhysicsSimService {
           (rotToleranceDeg2 * pi / 180.0).toDouble();
 
       Rotation2d resolveTargetHeading() {
-        return headingStrat
-          ?.resolveHeading(Translation2d(x, y), headingStrats: HeadingStratsStore.settings) ??
+        return headingStrat?.resolveHeading(Translation2d(x, y)) ??
             end.holonomicAngle;
       }
 

@@ -39,7 +39,6 @@ class HeadingStrat {
   double targetY;
   double offsetDeg;
   double falseDegrees;
-  String? falseHeadingStratId;
   String condition;
 
   HeadingStrat({
@@ -51,7 +50,6 @@ class HeadingStrat {
     required this.targetY,
     required this.offsetDeg,
     required this.falseDegrees,
-    this.falseHeadingStratId,
     required this.condition,
   });
 
@@ -71,8 +69,7 @@ class HeadingStrat {
       targetY: readDouble(json['targetY'], 0.0),
       offsetDeg:
           readDouble(json['offsetDeg'], readDouble(json['headingDeg'], 0.0)),
-      falseDegrees: readDouble(json['falseDegrees'], 0.0),
-      falseHeadingStratId: json['falseHeadingStratId']?.toString(),
+        falseDegrees: readDouble(json['falseDegrees'], 0.0),
       condition: json['condition']?.toString() ?? '',
     );
   }
@@ -87,7 +84,6 @@ class HeadingStrat {
       'targetY': targetY,
       'offsetDeg': offsetDeg,
       'falseDegrees': falseDegrees,
-      'falseHeadingStratId': falseHeadingStratId,
       'condition': condition,
     };
   }
@@ -102,7 +98,6 @@ class HeadingStrat {
       targetY: targetY,
       offsetDeg: offsetDeg,
       falseDegrees: falseDegrees,
-      falseHeadingStratId: falseHeadingStratId,
       condition: condition,
     );
   }
@@ -115,30 +110,10 @@ class HeadingStrat {
       type == HeadingStratKinds.faceTarget ||
       type == HeadingStratKinds.faceTargetOnCondition;
 
-  Rotation2d? resolveHeading(
-    Translation2d robotPose, {
-    List<HeadingStrat> headingStrats = const [],
-  }) {
-    return _resolveHeading(robotPose, headingStrats, <String>{});
-  }
-
-  Rotation2d? _resolveHeading(
-    Translation2d robotPose,
-    List<HeadingStrat> headingStrats,
-    Set<String> resolvingIds,
-  ) {
+  Rotation2d? resolveHeading(Translation2d robotPose) {
     if ((type == HeadingStratKinds.simpleOnCondition ||
             type == HeadingStratKinds.faceTargetOnCondition) &&
         !_conditionMatches(robotPose)) {
-      final fallback = falseHeadingStratId == null
-          ? null
-          : headingStrats.cast<HeadingStrat?>().firstWhere(
-                (strat) => strat?.id == falseHeadingStratId,
-                orElse: () => null,
-              );
-      if (fallback != null && resolvingIds.add(id)) {
-        return fallback._resolveHeading(robotPose, headingStrats, resolvingIds);
-      }
       return Rotation2d.fromDegrees(falseDegrees);
     }
 
