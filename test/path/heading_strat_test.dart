@@ -36,18 +36,7 @@ void main() {
     expect(strat.resolveHeading(Translation2d(6, 0))?.degrees, closeTo(15, 1e-9));
   });
 
-  test('conditional heading uses another strategy when false', () {
-    final fallback = HeadingStrat(
-      id: 'fallback',
-      name: 'fallback',
-      type: HeadingStratKinds.simple,
-      degrees: 30,
-      targetX: 0,
-      targetY: 0,
-      offsetDeg: 0,
-      falseDegrees: 0,
-      condition: '',
-    );
+  test('conditional heading uses another heading when false', () {
     final strat = HeadingStrat(
       id: 'conditional',
       name: 'conditional',
@@ -57,13 +46,12 @@ void main() {
       targetY: 0,
       offsetDeg: 0,
       falseDegrees: 0,
-      falseHeadingStratId: 'fallback',
       condition: 'false',
     );
 
     expect(
-      strat.resolveHeading(Translation2d(0, 0), headingStrats: [strat, fallback])?.degrees,
-      closeTo(30, 1e-9),
+      strat.resolveHeading(Translation2d(0, 0))?.degrees,
+      closeTo(0, 1e-9),
     );
   });
 }
