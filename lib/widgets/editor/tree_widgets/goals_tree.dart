@@ -1,0 +1,307 @@
+import 'package:flutter/material.dart';
+import 'package:pathplanner/path/goal.dart';
+import 'package:pathplanner/path/goal_picker.dart';
+import 'package:pathplanner/path/heading_strat.dart';
+import 'package:pathplanner/path/waypoint.dart';
+import 'package:pathplanner/services/physics_sim_service.dart';
+import 'package:pathplanner/util/wpimath/geometry.dart';
+import 'package:pathplanner/widgets/editor/tree_widgets/item_count.dart';
+import 'package:pathplanner/widgets/editor/tree_widgets/tree_card_node.dart';
+import 'package:pathplanner/widgets/number_text_field.dart';
+import 'package:undo/undo.dart';
+
+class GoalsTree extends StatefulWidget {
+  final GoalPicker path;
+  final ChangeStack undoStack;
+  final VoidCallback? onPathChanged;
+
+  const GoalsTree({
+    super.key,
+    required this.path,
+    required this.undoStack,
+    this.onPathChanged,
+  });
+
+  @override
+  State<GoalsTree> createState() => _GoalsTreeState();
+}
+
+class _GoalsTreeState extends State<GoalsTree> {
+  List<Goal> _cloneGoals() => [for (final goal in widget.path.goals) goal.clone()];
+
+  void _restoreGoals(List<Goal> goals) {
+    widget.path.goals = [for (final goal in goals) goal.clone()];
+    widget.path.rebuildPath();
+    widget.onPathChanged?.call();
+  }
+
+  void _changeGoals(void Function() change) {
+    final oldGoals = _cloneGoals();
+    widget.undoStack.add(Change(
+      oldGoals,
+      () {
+        setState(() {
+          change();
+          widget.path.rebuildPath();
+          widget.onPathChanged?.call();
+        });
+      },
+      (oldValue) {
+        setState(() => _restoreGoals(oldValue));
+      },
+    ));
+  }
+
+  void _addGoal() {
+    _changeGoals(() {
+      final previous = widget.path.waypoints.last.anchor;
+      widget.path.goals.add(Goal(
+        waypoints: [
+          Waypoint(anchor: previous + const Translation2d(1.0, 0.0)),
+        ],
+      ));
+    });
+  }
+
+  void _deleteGoal(int index) {
+    if (widget.path.goals.length <= 1) return;
+    _changeGoals(() => widget.path.goals.removeAt(index));
+  }
+
+  void _moveGoal(int index, int direction) {
+    final newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= widget.path.goals.length) return;
+    _changeGoals(() {
+      final goal = widget.path.goals.removeAt(index);
+      widget.path.goals.insert(newIndex, goal);
+    });
+  }
+
+  void _addWaypoint(int goalIndex) {
+    _changeGoals(() {
+      final goal = widget.path.goals[goalIndex];
+      final previous = goal.waypoints.isEmpty
+          ? widget.path.startPose.translation
+          : goal.waypoints.last.anchor;
+      goal.waypoints.add(Waypoint(
+        anchor: previous + const Translation2d(1.0, 0.0),
+      ));
+    });
+  }
+
+  void _deleteWaypoint(int goalIndex, int waypointIndex) {
+    if (widget.path.goals[goalIndex].waypoints.length <= 1) return;
+    _changeGoals(() =>
+        widget.path.goals[goalIndex].waypoints.removeAt(waypointIndex));
+  }
+
+  void _updateWaypoint(Waypoint waypoint, void Function() update) {
+    setState(() {
+      update();
+      widget.path.rebuildPath();
+    });
+    widget.onPathChanged?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TreeCardNode(
+      title: const Text('Goals'),
+      leading: const Icon(Icons.flag_circle_outlined),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ItemCount(count: widget.path.goals.length),
+          IconButton(
+            tooltip: 'Add Goal',
+            onPressed: _addGoal,
+            icon: const Icon(Icons.add),
+          ),
+        ],
+      ),
+      initiallyExpanded: true,
+      children: [
+        for (int index = 0; index < widget.path.goals.length; index++)
+          _buildGoal(index, widget.path.goals[index]),
+      ],
+    );
+  }
+
+  Widget _buildGoal(int index, Goal goal) {
+    return TreeCardNode(
+      title: Text('Goal ${index + 1}'),
+      leading: const Icon(Icons.flag_outlined),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Move Goal Up',
+            onPressed: index == 0 ? null : () => _moveGoal(index, -1),
+            icon: const Icon(Icons.arrow_upward),
+          ),
+          IconButton(
+            tooltip: 'Move Goal Down',
+            onPressed: index == widget.path.goals.length - 1
+                ? null
+                : () => _moveGoal(index, 1),
+            icon: const Icon(Icons.arrow_downward),
+          ),
+          IconButton(
+            tooltip: 'Delete Goal',
+            onPressed: widget.path.goals.length <= 1
+                ? null
+                : () => _deleteGoal(index),
+            icon: const Icon(Icons.delete_outline),
+          ),
+          IconButton(
+            tooltip: 'Add Waypoint',
+            onPressed: () => _addWaypoint(index),
+            icon: const Icon(Icons.add_location_alt_outlined),
+          ),
+        ],
+      ),
+      initiallyExpanded: true,
+      children: [
+        for (int waypointIndex = 0;
+            waypointIndex < goal.waypoints.length;
+            waypointIndex++)
+          _buildWaypoint(index, waypointIndex, goal.waypoints[waypointIndex]),
+      ],
+    );
+  }
+
+  Widget _buildWaypoint(int goalIndex, int waypointIndex, Waypoint waypoint) {
+    return ExpansionTile(
+      key: ObjectKey(waypoint),
+      leading: const Icon(Icons.location_on_outlined),
+      title: Text('Waypoint ${waypointIndex + 1}'),
+      initiallyExpanded: true,
+      subtitle: Text(
+        '${waypoint.anchor.x.toStringAsFixed(2)}, '
+        '${waypoint.anchor.y.toStringAsFixed(2)}',
+      ),
+      trailing: IconButton(
+        tooltip: 'Delete Waypoint',
+        onPressed: widget.path.goals[goalIndex].waypoints.length <= 1
+            ? null
+            : () => _deleteWaypoint(goalIndex, waypointIndex),
+        icon: const Icon(Icons.delete_outline),
+      ),
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: NumberTextField(
+                  initialValue: waypoint.anchor.x,
+                  label: 'X Position (M)',
+                  enabled: !waypoint.isLocked,
+                  onSubmitted: (value) => value == null
+                      ? null
+                      : _updateWaypoint(waypoint,
+                          () => waypoint.move(value, waypoint.anchor.y)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: NumberTextField(
+                  initialValue: waypoint.anchor.y,
+                  label: 'Y Position (M)',
+                  enabled: !waypoint.isLocked,
+                  onSubmitted: (value) => value == null
+                      ? null
+                      : _updateWaypoint(waypoint,
+                          () => waypoint.move(waypoint.anchor.x, value)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        _buildWaypointDropdown(
+          label: 'Heading Strat',
+          value: waypoint.headingStratId,
+          items: [
+            for (final strat in HeadingStratsStore.settings)
+              DropdownMenuItem(value: strat.id, child: Text(strat.name)),
+          ],
+          onChanged: waypoint.isLocked
+              ? null
+              : (value) => _updateWaypoint(
+                  waypoint, () => waypoint.headingStratId = value),
+        ),
+        _buildWaypointDropdown(
+          label: 'Controller Setting',
+          value: waypoint.controllerSettingId,
+          items: [
+            for (final setting in ControllerSettingsStore.settings)
+              DropdownMenuItem(value: setting.id, child: Text(setting.name)),
+          ],
+          onChanged: waypoint.isLocked
+              ? null
+              : (value) => _updateWaypoint(
+                  waypoint, () => waypoint.controllerSettingId = value),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: NumberTextField(
+                  initialValue: waypoint.tolerance,
+                  label: 'Arrival Tolerance (M)',
+                  enabled: !waypoint.isLocked,
+                  onSubmitted: (value) => value == null
+                      ? null
+                      : _updateWaypoint(
+                          waypoint, () => waypoint.tolerance = value),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: NumberTextField(
+                  initialValue: waypoint.toleranceDeg,
+                  label: 'Rotation Tolerance (Deg)',
+                  enabled: !waypoint.isLocked,
+                  onSubmitted: (value) => value == null
+                      ? null
+                      : _updateWaypoint(
+                          waypoint, () => waypoint.toleranceDeg = value),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: IconButton(
+            tooltip: waypoint.isLocked ? 'Unlock Waypoint' : 'Lock Waypoint',
+            onPressed: () => _updateWaypoint(
+              waypoint,
+              () => waypoint.isLocked = !waypoint.isLocked,
+            ),
+            icon: Icon(waypoint.isLocked ? Icons.lock : Icons.lock_open),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWaypointDropdown({
+    required String label,
+    required String? value,
+    required List<DropdownMenuItem<String>> items,
+    required ValueChanged<String?>? onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(labelText: label),
+        isExpanded: true,
+        items: items,
+        onChanged: onChanged,
+      ),
+    );
+  }
+}

@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:multi_split_view/multi_split_view.dart';
 import 'package:pathplanner/path/constraints_zone.dart';
 import 'package:pathplanner/path/event_marker.dart';
+import 'package:pathplanner/path/goal.dart';
+import 'package:pathplanner/path/goal_picker.dart';
 import 'package:pathplanner/path/heading_strat.dart';
 import 'package:pathplanner/path/path_constraints.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
@@ -91,6 +93,19 @@ class _SplitPathEditorState extends State<SplitPathEditor>
   late AnimationController _previewController;
 
   List<Waypoint> get waypoints => widget.path.waypoints;
+
+  void _addWaypointAt(Translation2d position) {
+    if (widget.path is GoalPicker) {
+      final picker = widget.path as GoalPicker;
+      if (picker.goals.isEmpty) {
+        picker.goals.add(Goal(waypoints: []));
+      }
+      picker.goals.last.waypoints.add(Waypoint(anchor: position));
+      picker.rebuildPath();
+    } else {
+      widget.path.addWaypoint(position);
+    }
+  }
 
   RuntimeDisplay? _runtimeDisplay;
 
@@ -213,7 +228,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                   [PathPlannerPath.cloneWaypoints(waypoints), oldHeadingStrats],
                   () {
                     setState(() {
-                      widget.path.addWaypoint(Translation2d(
+                        _addWaypointAt(Translation2d(
                           _xPixelsToMeters(details.localPosition.dx),
                           _yPixelsToMeters(details.localPosition.dy)));
                       widget.path.generateAndSavePath();

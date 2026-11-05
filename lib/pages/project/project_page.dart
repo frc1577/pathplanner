@@ -14,9 +14,11 @@ import 'package:pathplanner/pages/path_editor_page.dart';
 import 'package:pathplanner/pages/project/project_item_card.dart';
 import 'package:pathplanner/auto/pathplanner_auto.dart';
 import 'package:pathplanner/path/choreo_path.dart';
+import 'package:pathplanner/path/goal.dart';
 import 'package:pathplanner/path/event_marker.dart';
 import 'package:pathplanner/path/path_constraints.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
+import 'package:pathplanner/path/goal_picker.dart';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/services/pplib_telemetry.dart';
 import 'package:pathplanner/util/prefs.dart';
@@ -251,10 +253,16 @@ class _ProjectPageState extends State<ProjectPage> {
       _inChoreoFolder = false;
 
       if (_paths.isEmpty) {
-        _paths.add(PathPlannerPath.defaultPath(
+        _paths.add(GoalPicker(
           pathDir: _pathsDirectory.path,
           name: 'Example Path',
           fs: fs,
+          startPose: const Pose2d(Translation2d(2.0, 7.0), Rotation2d()),
+          goals: [
+            Goal(waypoints: [
+              Waypoint(anchor: const Translation2d(4.0, 6.0)),
+            ]),
+          ],
           constraints: _getDefaultConstraints(),
         ));
       }
@@ -519,10 +527,17 @@ class _ProjectPageState extends State<ProjectPage> {
                     }
 
                     setState(() {
-                      _paths.add(PathPlannerPath.defaultPath(
+                      _paths.add(GoalPicker(
                         pathDir: _pathsDirectory.path,
                         name: pathName,
                         fs: fs,
+                        startPose: const Pose2d(
+                            Translation2d(2.0, 7.0), Rotation2d()),
+                        goals: [
+                          Goal(waypoints: [
+                            Waypoint(anchor: const Translation2d(4.0, 6.0)),
+                          ]),
+                        ],
                         folder: _pathFolder,
                         constraints: _getDefaultConstraints(),
                       ));
@@ -647,10 +662,17 @@ class _ProjectPageState extends State<ProjectPage> {
                   }
 
                   setState(() {
-                    _paths.add(PathPlannerPath.defaultPath(
+                    _paths.add(GoalPicker(
                       pathDir: _pathsDirectory.path,
                       name: pathName,
                       fs: fs,
+                      startPose: const Pose2d(
+                          Translation2d(2.0, 7.0), Rotation2d()),
+                      goals: [
+                        Goal(waypoints: [
+                          Waypoint(anchor: const Translation2d(4.0, 6.0)),
+                        ]),
+                      ],
                       folder: _pathFolder,
                       constraints: _getDefaultConstraints(),
                     ));

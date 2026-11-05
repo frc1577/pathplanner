@@ -12,6 +12,7 @@ import 'package:pathplanner/pages/project/project_page.dart';
 import 'package:pathplanner/path/constraints_zone.dart';
 import 'package:pathplanner/path/event_marker.dart';
 import 'package:pathplanner/path/goal_end_state.dart';
+import 'package:pathplanner/path/goal_picker.dart';
 import 'package:pathplanner/path/path_constraints.dart';
 import 'package:pathplanner/path/path_point.dart';
 import 'package:pathplanner/path/ideal_starting_state.dart';
@@ -197,8 +198,9 @@ class PathPlannerPath {
           Map<String, dynamic> json = jsonDecode(jsonStr);
           String pathName = basenameWithoutExtension(e.path);
 
-          PathPlannerPath path =
-              PathPlannerPath.fromJson(json, pathName, pathsDir, fs);
+            PathPlannerPath path = json['goals'] is List
+              ? GoalPicker.fromJson(json, pathName, pathsDir, fs)
+              : PathPlannerPath.fromJson(json, pathName, pathsDir, fs);
           path.lastModified = (await file.lastModified()).toUtc();
 
           if (json['version'] != fileVersion) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pathplanner/path/path_constraints.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
+import 'package:pathplanner/path/goal_picker.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/editor_settings_tree.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/event_markers_tree.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/global_constraints_tree.dart';
@@ -9,6 +10,7 @@ import 'package:pathplanner/widgets/editor/tree_widgets/ideal_starting_state_tre
 import 'package:pathplanner/widgets/editor/tree_widgets/path_optimization_tree.dart';
 // Rotation Targets / Point Towards Zones / Constraint Zones UI removed
 import 'package:pathplanner/widgets/editor/tree_widgets/waypoints_tree.dart';
+import 'package:pathplanner/widgets/editor/tree_widgets/goals_tree.dart';
 import 'package:pathplanner/services/save_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:undo/undo.dart';
@@ -96,7 +98,14 @@ class _PathTreeState extends State<PathTree> {
           child: SingleChildScrollView(
             child: Column(
               children: [
-                _buildWaypointsTree(),
+                if (widget.path is GoalPicker)
+                  GoalsTree(
+                    path: widget.path as GoalPicker,
+                    undoStack: widget.undoStack,
+                    onPathChanged: widget.onPathChanged,
+                  )
+                else
+                  _buildWaypointsTree(),
                 _buildEventMarkersTree(),
                 // Rotation Targets and Point Towards Zones UI removed
                 const Divider(),
