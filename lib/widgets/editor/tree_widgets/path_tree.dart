@@ -10,6 +10,7 @@ import 'package:pathplanner/widgets/editor/tree_widgets/ideal_starting_state_tre
 import 'package:pathplanner/widgets/editor/tree_widgets/path_optimization_tree.dart';
 // Rotation Targets / Point Towards Zones / Constraint Zones UI removed
 import 'package:pathplanner/widgets/editor/tree_widgets/waypoints_tree.dart';
+import 'package:pathplanner/widgets/editor/tree_widgets/start_pose_tree.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/goals_tree.dart';
 import 'package:pathplanner/services/save_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -99,10 +100,19 @@ class _PathTreeState extends State<PathTree> {
             child: Column(
               children: [
                 if (widget.path is GoalPicker)
-                  GoalsTree(
-                    path: widget.path as GoalPicker,
-                    undoStack: widget.undoStack,
-                    onPathChanged: widget.onPathChanged,
+                  Column(
+                    children: [
+                      StartPoseTree(
+                        path: widget.path as GoalPicker,
+                        undoStack: widget.undoStack,
+                        onPathChanged: widget.onPathChanged,
+                      ),
+                      GoalsTree(
+                        path: widget.path as GoalPicker,
+                        undoStack: widget.undoStack,
+                        onPathChanged: widget.onPathChanged,
+                      ),
+                    ],
                   )
                 else
                   _buildWaypointsTree(),
