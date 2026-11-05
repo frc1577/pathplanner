@@ -1,0 +1,56 @@
+
+{
+  "name": "ExampleConfig",
+  "startPose": {
+    "x": 0.0,
+    "y": 0.0,
+    "degrees": 0.0
+  },
+  "goals": [
+    {
+      "name": "Goal1",
+      "command": "ExampleCommand",
+      "waypoints": [
+        {
+          "translation": {
+            "x": 1.0,
+            "y": 2.0
+          },
+          "headingStrat": "faceHub",
+          "toleranceM": 0.1,
+          "toleranceDeg": 5.0,
+          "IController": "ExampleController",
+          "isTransparent": false
+        },
+        {
+          "translation": {
+            "x": 3.0,
+            "y": 4.0
+          },
+          "headingStrat": "faceCorner",
+          "toleranceM": 0.15,
+          "toleranceDeg": 3.0,
+          "IController": "ExampleController",
+          "isTransparent": true
+        }
+      ]
+    },
+    {
+      "name": "Goal2",
+      "command": "AnotherCommand",
+      "waypoints": [
+        {
+          "translation": {
+            "x": 5.0,
+            "y": 2.0
+          },
+          "headingStrat": "faceHub",
+          "toleranceM": 0.2,
+          "toleranceDeg": 5.0,
+          "IController": "ExampleController",
+          "isTransparent": false
+        }
+      ]
+    }
+  ]
+}
