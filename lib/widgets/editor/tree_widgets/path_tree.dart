@@ -111,6 +111,7 @@ class _PathTreeState extends State<PathTree> {
                         path: widget.path as GoalPicker,
                         undoStack: widget.undoStack,
                         onPathChanged: widget.onPathChanged,
+                        onControllerSettingsChanged: widget.onControllerSettingsChanged,
                       ),
                     ],
                   )

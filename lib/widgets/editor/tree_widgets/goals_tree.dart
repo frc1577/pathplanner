@@ -1,5 +1,6 @@
-
 import 'package:flutter/material.dart';
+import 'package:pathplanner/pages/controller_settings_page.dart';
+import 'package:pathplanner/pages/heading_strats_page.dart';
 import 'package:pathplanner/path/goal.dart';
 import 'package:pathplanner/path/goal_picker.dart';
 import 'package:pathplanner/path/heading_strat.dart';
@@ -15,12 +16,14 @@ class GoalsTree extends StatefulWidget {
   final GoalPicker path;
   final ChangeStack undoStack;
   final VoidCallback? onPathChanged;
+  final VoidCallback? onControllerSettingsChanged;
 
   const GoalsTree({
     super.key,
     required this.path,
     required this.undoStack,
     this.onPathChanged,
+    this.onControllerSettingsChanged,
   });
 
   @override
@@ -29,7 +32,6 @@ class GoalsTree extends StatefulWidget {
 
 class _GoalsTreeState extends State<GoalsTree> {
   final Map<Goal, int> _selectedTabs = {};
-
   final Map<Goal, TextEditingController> _commandControllers = {};
   final Map<Goal, TextEditingController> _endCondControllers = {};
 
@@ -73,7 +75,9 @@ class _GoalsTreeState extends State<GoalsTree> {
 
   void _addGoal() {
     _changeGoals(() {
-      final previous = widget.path.waypoints.last.anchor;
+      final previous = widget.path.waypoints.isEmpty
+          ? const Translation2d(0.0, 0.0)
+          : widget.path.waypoints.last.anchor;
 
       widget.path.goals.add(Goal(
         waypoints: [
@@ -166,9 +170,7 @@ class _GoalsTreeState extends State<GoalsTree> {
       ),
       initiallyExpanded: true,
       children: [
-        for (int index = 0;
-            index < widget.path.goals.length;
-            index++)
+        for (int index = 0; index < widget.path.goals.length; index++)
           _buildGoal(index, widget.path.goals[index]),
       ],
     );
@@ -178,6 +180,7 @@ class _GoalsTreeState extends State<GoalsTree> {
     final selectedTab = _selectedTabs[goal] ?? 0;
 
     return TreeCardNode(
+      key: ValueKey('goal_${index}_${goal.waypoints.length}'),
       title: Text('Goal ${index + 1}'),
       leading: const Icon(Icons.flag_outlined),
       trailing: Row(
@@ -201,11 +204,6 @@ class _GoalsTreeState extends State<GoalsTree> {
                 ? null
                 : () => _deleteGoal(index),
             icon: const Icon(Icons.delete_outline),
-          ),
-          IconButton(
-            tooltip: 'Add Waypoint',
-            onPressed: () => _addWaypoint(index),
-            icon: const Icon(Icons.add_location_alt_outlined),
           ),
         ],
       ),
@@ -234,16 +232,38 @@ class _GoalsTreeState extends State<GoalsTree> {
             },
           ),
         ),
-
+        const SizedBox(height: 8),
         if (selectedTab == 0) ...[
-          for (int waypointIndex = 0;
-              waypointIndex < goal.waypoints.length;
-              waypointIndex++)
-            _buildWaypoint(
-              index,
-              waypointIndex,
-              goal.waypoints[waypointIndex],
+          TreeCardNode(
+            key: ValueKey(
+                'waypoints_sub_tree_${index}_${goal.waypoints.length}'),
+            title: const Text('Waypoints'),
+            leading: const Icon(Icons.location_on_outlined),
+            elevation: 1,
+            indent: 8,
+            initiallyExpanded: true,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ItemCount(count: goal.waypoints.length),
+                IconButton(
+                  tooltip: 'Add Waypoint',
+                  onPressed: () => _addWaypoint(index),
+                  icon: const Icon(Icons.add),
+                ),
+              ],
             ),
+            children: [
+              for (int waypointIndex = 0;
+                  waypointIndex < goal.waypoints.length;
+                  waypointIndex++)
+                _buildWaypointCard(
+                  index,
+                  waypointIndex,
+                  goal.waypoints[waypointIndex],
+                ),
+            ],
+          ),
         ] else ...[
           Padding(
             padding: const EdgeInsets.all(12),
@@ -294,20 +314,18 @@ class _GoalsTreeState extends State<GoalsTree> {
     );
   }
 
-  Widget _buildWaypoint(
+  Widget _buildWaypointCard(
     int goalIndex,
     int waypointIndex,
     Waypoint waypoint,
   ) {
-    return ExpansionTile(
+    return TreeCardNode(
       key: ObjectKey(waypoint),
-      leading: const Icon(Icons.location_on_outlined),
+      elevation: 0,
+      indent: 4,
       title: Text('Waypoint ${waypointIndex + 1}'),
+      leading: const Icon(Icons.location_on_outlined),
       initiallyExpanded: true,
-      subtitle: Text(
-        '${waypoint.anchor.x.toStringAsFixed(2)}, '
-        '${waypoint.anchor.y.toStringAsFixed(2)}',
-      ),
       trailing: IconButton(
         tooltip: 'Delete Waypoint',
         onPressed: widget.path.goals[goalIndex].waypoints.length <= 1
@@ -350,7 +368,7 @@ class _GoalsTreeState extends State<GoalsTree> {
             ],
           ),
         ),
-        _buildWaypointDropdown(
+        _buildWaypointDropdownRow(
           label: 'Heading Strat',
           value: waypoint.headingStratId,
           items: [
@@ -366,8 +384,25 @@ class _GoalsTreeState extends State<GoalsTree> {
                     waypoint,
                     () => waypoint.headingStratId = value,
                   ),
+          onGearPressed: () async {
+            final updatedStrats =
+                await Navigator.of(context).push<List<HeadingStrat>>(
+              MaterialPageRoute(
+                builder: (context) => HeadingStratsPage(
+                  headingStrats: HeadingStratsStore.settings,
+                ),
+              ),
+            );
+            if (updatedStrats != null) {
+              setState(() {
+                HeadingStratsStore.setSettings(updatedStrats);
+              });
+              widget.onPathChanged?.call();
+            }
+          },
+          gearTooltip: 'Edit Heading Strategies',
         ),
-        _buildWaypointDropdown(
+        _buildWaypointDropdownRow(
           label: 'Controller Setting',
           value: waypoint.controllerSettingId,
           items: [
@@ -383,6 +418,23 @@ class _GoalsTreeState extends State<GoalsTree> {
                     waypoint,
                     () => waypoint.controllerSettingId = value,
                   ),
+          onGearPressed: () async {
+            final updatedSettings =
+                await Navigator.of(context).push<List<ControllerSetting>>(
+              MaterialPageRoute(
+                builder: (context) => ControllerSettingsPage(
+                  controllerSettings: ControllerSettingsStore.settings,
+                ),
+              ),
+            );
+            if (updatedSettings != null) {
+              setState(() {
+                ControllerSettingsStore.setSettings(updatedSettings);
+              });
+              widget.onControllerSettingsChanged?.call();
+            }
+          },
+          gearTooltip: 'Edit Controller Settings',
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -437,20 +489,34 @@ class _GoalsTreeState extends State<GoalsTree> {
     );
   }
 
-  Widget _buildWaypointDropdown({
+  Widget _buildWaypointDropdownRow({
     required String label,
     required String? value,
     required List<DropdownMenuItem<String>> items,
     required ValueChanged<String?>? onChanged,
+    required VoidCallback onGearPressed,
+    required String gearTooltip,
   }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-      child: DropdownButtonFormField<String>(
-        value: value,
-        decoration: InputDecoration(labelText: label),
-        isExpanded: true,
-        items: items,
-        onChanged: onChanged,
+      child: Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              value: value,
+              decoration: InputDecoration(labelText: label),
+              isExpanded: true,
+              items: items,
+              onChanged: onChanged,
+            ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            tooltip: gearTooltip,
+            onPressed: onGearPressed,
+            icon: const Icon(Icons.settings),
+          ),
+        ],
       ),
     );
   }
