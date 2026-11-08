@@ -77,17 +77,12 @@ class Waypoint {
 
   Map<String, dynamic> toJson() {
     return {
-      'anchor': anchor.toJson(),
-      'holonomicAngle': holonomicAngle.degrees,
-      'kp': kp,
-      'ki': ki,
-      'kd': kd,
+      'translation': anchor.toJson(),
       'tolerance': tolerance,
       'toleranceDeg': toleranceDeg,
-      'isLocked': isLocked,
       'linkedName': linkedName,
-      'controllerSettingId': controllerSettingId,
-      'headingStratId': headingStratId,
+      'controllerSettings': controllerSettingId,
+      'headingStrat': headingStratId,
     };
   }
 

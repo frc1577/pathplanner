@@ -107,7 +107,6 @@ class GoalPicker extends PathPlannerPath {
   @override
   Map<String, dynamic> toJson() {
     return {
-      'version': fileVersion,
       'startPose': {
         'x': startPose.x,
         'y': startPose.y,
@@ -116,12 +115,6 @@ class GoalPicker extends PathPlannerPath {
       'goals': [
         for (final goal in goals) goal.toJson(),
       ],
-      'globalConstraints': globalConstraints.toJson(),
-      'goalEndState': goalEndState.toJson(),
-      'reversed': reversed,
-      'folder': folder,
-      'idealStartingState': idealStartingState.toJson(),
-      'useDefaultConstraints': useDefaultConstraints,
     };
   }
 }
