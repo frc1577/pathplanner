@@ -3,11 +3,6 @@ import 'package:pathplanner/path/path_constraints.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/goal_picker.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/editor_settings_tree.dart';
-import 'package:pathplanner/widgets/editor/tree_widgets/event_markers_tree.dart';
-import 'package:pathplanner/widgets/editor/tree_widgets/global_constraints_tree.dart';
-import 'package:pathplanner/widgets/editor/tree_widgets/goal_end_state_tree.dart';
-import 'package:pathplanner/widgets/editor/tree_widgets/ideal_starting_state_tree.dart';
-import 'package:pathplanner/widgets/editor/tree_widgets/path_optimization_tree.dart';
 // Rotation Targets / Point Towards Zones / Constraint Zones UI removed
 import 'package:pathplanner/widgets/editor/tree_widgets/waypoints_tree.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/start_pose_tree.dart';
@@ -117,16 +112,9 @@ class _PathTreeState extends State<PathTree> {
                   )
                 else
                   _buildWaypointsTree(),
-                _buildEventMarkersTree(),
                 // Rotation Targets and Point Towards Zones UI removed
-                const Divider(),
-                _buildIdealStartingStateTree(),
-                _buildGoalEndStateTree(),
-                const Divider(),
-                _buildGlobalConstraintsTree(),
                 if (!widget.holonomicMode) _buildReversedCheckbox(),
                 const Divider(),
-                _buildPathOptimizationTree(),
                 const EditorSettingsTree(),
               ],
             ),
@@ -378,37 +366,7 @@ class _PathTreeState extends State<PathTree> {
         holonomicMode: widget.holonomicMode,
       );
 
-  Widget _buildGlobalConstraintsTree() => GlobalConstraintsTree(
-        path: widget.path,
-        onPathChanged: widget.onPathChanged,
-        undoStack: widget.undoStack,
-        defaultConstraints: widget.defaultConstraints,
-      );
 
-  Widget _buildIdealStartingStateTree() => IdealStartingStateTree(
-        path: widget.path,
-        undoStack: widget.undoStack,
-        holonomicMode: widget.holonomicMode,
-        onPathChanged: widget.onPathChanged,
-      );
-
-  Widget _buildGoalEndStateTree() => GoalEndStateTree(
-        path: widget.path,
-        onPathChanged: widget.onPathChanged,
-        undoStack: widget.undoStack,
-        holonomicMode: widget.holonomicMode,
-      );
-
-
-  Widget _buildEventMarkersTree() => EventMarkersTree(
-        key: ValueKey('markers${widget.path.eventMarkers.length}'),
-        path: widget.path,
-        onPathChangedNoSim: widget.onPathChangedNoSim,
-        onMarkerHovered: widget.onMarkerHovered,
-        onMarkerSelected: widget.onMarkerSelected,
-        initiallySelectedMarker: widget.initiallySelectedMarker,
-        undoStack: widget.undoStack,
-      );
 
   // Constraint Zones UI removed
 
@@ -489,13 +447,4 @@ class _PathTreeState extends State<PathTree> {
       ),
     );
   }
-
-  Widget _buildPathOptimizationTree() => PathOptimizationTree(
-        path: widget.path,
-        onPathChanged: widget.onPathChanged,
-        onUpdate: widget.onOptimizationUpdate,
-        undoStack: widget.undoStack,
-        prefs: widget.prefs,
-        fieldSizeMeters: widget.fieldSizeMeters,
-      );
 }
