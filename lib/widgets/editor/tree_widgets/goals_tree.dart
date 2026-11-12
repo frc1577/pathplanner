@@ -404,7 +404,7 @@ class _GoalsTreeState extends State<GoalsTree> {
         ),
         _buildWaypointDropdownRow(
           label: 'Controller Setting',
-          value: waypoint.controllerSettingId,
+          value: waypoint.controllerSettingName,
           items: [
             for (final setting in ControllerSettingsStore.settings)
               DropdownMenuItem(
@@ -416,7 +416,7 @@ class _GoalsTreeState extends State<GoalsTree> {
               ? null
               : (value) => _updateWaypoint(
                     waypoint,
-                    () => waypoint.controllerSettingId = value,
+                    () => waypoint.controllerSettingName = value,
                   ),
           onGearPressed: () async {
             final updatedSettings =

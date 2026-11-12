@@ -357,8 +357,8 @@ void main() {
     await widgetTester.pumpAndSettle();
 
     expect(pathChanged, true);
-    expect(path.waypoints[1].controllerSettingId,
-        ControllerSettingsStore.settings.first.id);
+    expect(path.waypoints[1].controllerSettingName,
+        ControllerSettingsStore.settings.first.name);
   });
 
   testWidgets('Manage controller settings button visible', (widgetTester) async {

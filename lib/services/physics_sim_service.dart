@@ -148,7 +148,7 @@ class PhysicsSimService {
           segmentVector.x / segmentLength, segmentVector.y / segmentLength);
 
       final ControllerSetting? startSettings =
-          _getControllerSettingsByName(path, start.controllerSettingId);
+          _getControllerSettingsByName(path, start.controllerSettingName);
 
       final num cruiseVelocity = max(0.0, startSettings?.cruiseVelocity ?? 2.0);
       final num maxAccel = max(1e-6, startSettings?.maxAcceleration ?? 1.0);
@@ -351,7 +351,7 @@ class PhysicsSimService {
     );
 
     final ControllerSetting? controllerSettings =
-        _getControllerSettingsByName(path, first.controllerSettingId);
+        _getControllerSettingsByName(path, first.controllerSettingName);
 
     ProfiledPIDController xController = ProfiledPIDController(
       controllerSettings?.kp ?? first.kp.toDouble(),
@@ -383,7 +383,7 @@ class PhysicsSimService {
     for (int i = 0; i < path.waypoints.length - 1; i++) {
       final Waypoint end = path.waypoints[i + 1];
       final ControllerSetting? currentSettings =
-          _getControllerSettingsByName(path, end.controllerSettingId);
+          _getControllerSettingsByName(path, end.controllerSettingName);
       final HeadingStrat? headingStrat =
           _getHeadingStratById(end.headingStratId);
 

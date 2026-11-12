@@ -498,7 +498,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                         ));
                       }
 
-                      String? selectedValue = waypoint.controllerSettingId;
+                      String? selectedValue = waypoint.controllerSettingName;
 
                       // If the selected value is non-null but not present in the
                       // current items, add a placeholder so DropdownButton can
@@ -523,7 +523,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                             ? null
                             : (value) {
                                 setState(() {
-                                  waypoint.controllerSettingId = value;
+                                  waypoint.controllerSettingName = value;
                                 });
                                 widget.onPathChanged?.call();
                               },

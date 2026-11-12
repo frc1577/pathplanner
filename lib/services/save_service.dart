@@ -156,9 +156,9 @@ class SaveService {
 
       String controllerRef = 'null';
 
-      if (w.controllerSettingId != null &&
-          nameToVar.containsKey(w.controllerSettingId)) {
-        controllerRef = nameToVar[w.controllerSettingId]!;
+      if (w.controllerSettingName != null &&
+          nameToVar.containsKey(w.controllerSettingName)) {
+        controllerRef = nameToVar[w.controllerSettingName]!;
       } else {
         // fallback to first controller if available
         if (settings.isNotEmpty) {
@@ -225,7 +225,7 @@ class SaveService {
             holonomicAngle: Rotation2d.fromDegrees(angDeg),
             tolerance: tol,
             toleranceDeg: tolDeg,
-            controllerSettingId: null,
+            controllerSettingName: null,
           );
 
           waypoints.add(wp);
