@@ -69,6 +69,16 @@ class _WaypointsTreeState extends State<WaypointsTree> {
   }
 
   @override
+  void dispose() {
+    // Detach so callers that outlive this widget (e.g. SplitPathEditor's tap
+    // handler) don't hold a stale reference to this state.
+    if (identical(_treeController._state, this)) {
+      _treeController._state = null;
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return TreeCardNode(
       title: const Text('Waypoints'),
@@ -799,8 +809,12 @@ class WaypointsTreeController {
 
   _WaypointsTreeState? _state;
 
+  /// Whether an active [WaypointsTree] is attached to this controller.
+  bool get isAttached => _state != null;
+
+  /// Selects a waypoint in the attached tree. No-op if no tree is attached
+  /// (e.g. goal picker paths render no waypoints tree).
   void setSelectedWaypoint(int? waypointIdx) {
-    assert(_state != null);
-    _state!._setSelectedWaypoint(waypointIdx);
+    _state?._setSelectedWaypoint(waypointIdx);
   }
 }
