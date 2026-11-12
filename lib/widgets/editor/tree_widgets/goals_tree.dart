@@ -408,7 +408,7 @@ class _GoalsTreeState extends State<GoalsTree> {
           items: [
             for (final setting in ControllerSettingsStore.settings)
               DropdownMenuItem(
-                value: setting.id,
+                value: setting.name,
                 child: Text(setting.name),
               ),
           ],

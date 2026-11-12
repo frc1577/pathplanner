@@ -148,7 +148,7 @@ class PhysicsSimService {
           segmentVector.x / segmentLength, segmentVector.y / segmentLength);
 
       final ControllerSetting? startSettings =
-          _getControllerSettingsById(path, start.controllerSettingId);
+          _getControllerSettingsByName(path, start.controllerSettingId);
 
       final num cruiseVelocity = max(0.0, startSettings?.cruiseVelocity ?? 2.0);
       final num maxAccel = max(1e-6, startSettings?.maxAcceleration ?? 1.0);
@@ -351,7 +351,7 @@ class PhysicsSimService {
     );
 
     final ControllerSetting? controllerSettings =
-        _getControllerSettingsById(path, first.controllerSettingId);
+        _getControllerSettingsByName(path, first.controllerSettingId);
 
     ProfiledPIDController xController = ProfiledPIDController(
       controllerSettings?.kp ?? first.kp.toDouble(),
@@ -383,7 +383,7 @@ class PhysicsSimService {
     for (int i = 0; i < path.waypoints.length - 1; i++) {
       final Waypoint end = path.waypoints[i + 1];
       final ControllerSetting? currentSettings =
-          _getControllerSettingsById(path, end.controllerSettingId);
+          _getControllerSettingsByName(path, end.controllerSettingId);
       final HeadingStrat? headingStrat =
           _getHeadingStratById(end.headingStratId);
 
@@ -580,12 +580,12 @@ class PhysicsSimService {
     return angle;
   }
 
-  static ControllerSetting? _getControllerSettingsById(
-      PathPlannerPath path, String? id) {
-    if (id == null) return null;
+  static ControllerSetting? _getControllerSettingsByName(
+      PathPlannerPath path, String? name) {
+    if (name == null) return null;
 
     for (final s in ControllerSettingsStore.settings) {
-      if (s.id == id) return s;
+      if (s.name == name) return s;
     }
 
     return null;
@@ -637,7 +637,6 @@ class ControllerSettingsStore {
   static List<ControllerSetting> _defaultSettings() {
     return [
       ControllerSetting(
-        id: '1',
         name: 'Default Setting',
         kp: 1.0,
         ki: 0.0,
@@ -651,7 +650,6 @@ class ControllerSettingsStore {
         angularMaxAcceleration: 2.0,
       ),
       ControllerSetting(
-        id: '2',
         name: 'Aggressive Setting',
         kp: 2.0,
         ki: 0.5,
@@ -729,7 +727,6 @@ class HeadingStratsStore {
 }
 
 class ControllerSetting {
-  final String id;
   final String name;
   final double kp;
   final double ki;
@@ -743,7 +740,6 @@ class ControllerSetting {
   final double angularMaxAcceleration;
 
   ControllerSetting({
-    required this.id,
     required this.name,
     required this.kp,
     required this.ki,
@@ -765,7 +761,6 @@ class ControllerSetting {
     }
 
     return ControllerSetting(
-      id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       kp: readDouble(json['kp'], 0.0),
       ki: readDouble(json['ki'], 0.0),
@@ -782,7 +777,6 @@ class ControllerSetting {
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
       'name': name,
       'kp': kp,
       'ki': ki,

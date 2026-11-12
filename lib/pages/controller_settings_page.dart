@@ -25,7 +25,6 @@ class _ControllerSettingsPageState extends State<ControllerSettingsPage> {
     // Use mutable maps for editing, convert back on save
   _controllerSettings = widget.controllerSettings
     .map((c) => <String, Object?>{
-        'id': c.id,
         'name': c.name,
         'kp': c.kp,
         'ki': c.ki,
@@ -41,11 +40,11 @@ class _ControllerSettingsPageState extends State<ControllerSettingsPage> {
     .toList(growable: true);
   }
 
-  void _addControllerSetting() {
+void _addControllerSetting() {
     setState(() {
+      final int newIndex = _controllerSettings.length + 1;
       _controllerSettings.add(<String, Object?>{
-        'id': DateTime.now().millisecondsSinceEpoch.toString(),
-        'name': 'New Setting',
+        'name': 'New Setting $newIndex',
         'kp': 0.0,
         'ki': 0.0,
         'kd': 0.0,
@@ -71,7 +70,6 @@ class _ControllerSettingsPageState extends State<ControllerSettingsPage> {
   void _notifyChanged() {
     if (widget.onChanged != null) {
       widget.onChanged!(List.unmodifiable(_controllerSettings.map((m) => ControllerSetting(
-            id: m['id'].toString(),
             name: m['name'].toString(),
             kp: (m['kp'] as num).toDouble(),
             ki: (m['ki'] as num).toDouble(),
@@ -135,7 +133,6 @@ class _ControllerSettingsPageState extends State<ControllerSettingsPage> {
                   setState(() {
                     for (final s in parsed) {
                       _controllerSettings.add({
-                        'id': s.id,
                         'name': s.name,
                         'kp': s.kp,
                         'ki': s.ki,
@@ -165,7 +162,6 @@ class _ControllerSettingsPageState extends State<ControllerSettingsPage> {
         // Return updated settings as typed ControllerSetting list
         final out = _controllerSettings
           .map((m) => ControllerSetting(
-            id: m['id'].toString(),
             name: m['name'].toString(),
             kp: (m['kp'] as num).toDouble(),
             ki: (m['ki'] as num).toDouble(),

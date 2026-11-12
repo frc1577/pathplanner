@@ -487,13 +487,13 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                       // controllerSettingId is represented so DropdownButton's
                       // value is always one of the items (or null).
                       final List<DropdownMenuItem<String>> items = [];
-                      final seenIds = <String>{};
+                      final seenNames = <String>{};
 
                       for (final setting in ControllerSettingsStore.settings) {
-                        if (seenIds.contains(setting.id)) continue;
-                        seenIds.add(setting.id);
+                        if (seenNames.contains(setting.name)) continue;
+                        seenNames.add(setting.name);
                         items.add(DropdownMenuItem<String>(
-                          value: setting.id,
+                          value: setting.name,
                           child: Text(setting.name),
                         ));
                       }
@@ -504,7 +504,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                       // current items, add a placeholder so DropdownButton can
                       // render a matching item instead of asserting.
                       if (selectedValue != null &&
-                          !seenIds.contains(selectedValue)) {
+                          !seenNames.contains(selectedValue)) {
                         items.insert(
                           0,
                           DropdownMenuItem<String>(
