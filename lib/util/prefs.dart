@@ -53,6 +53,7 @@ class PrefsKeys {
   static const String controllerSettings = 'controllerSettings';
   static const String headingStrats = 'headingStrats';
   static const String commands = 'commands';
+  static const String triggers = 'triggers';
 }
 
 class Defaults {

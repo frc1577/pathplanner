@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pathplanner/pages/command_page.dart';
 import 'package:pathplanner/pages/controller_settings_page.dart';
 import 'package:pathplanner/pages/heading_strats_page.dart';
+import 'package:pathplanner/pages/trigger_page.dart';
 import 'package:pathplanner/path/goal.dart';
 import 'package:pathplanner/path/goal_picker.dart';
 import 'package:pathplanner/path/heading_strat.dart';
@@ -33,21 +34,9 @@ class GoalsTree extends StatefulWidget {
 
 class _GoalsTreeState extends State<GoalsTree> {
   final Map<Goal, int> _selectedTabs = {};
-  final Map<Goal, TextEditingController> _endCondControllers = {};
 
   List<Goal> _cloneGoals() =>
       [for (final goal in widget.path.goals) goal.clone()];
-
-  TextEditingController _getController(
-    Map<Goal, TextEditingController> controllers,
-    Goal goal,
-    String initialValue,
-  ) {
-    return controllers.putIfAbsent(
-      goal,
-      () => TextEditingController(text: initialValue),
-    );
-  }
 
   void _restoreGoals(List<Goal> goals) {
     widget.path.goals = [for (final goal in goals) goal.clone()];
@@ -139,12 +128,15 @@ class _GoalsTreeState extends State<GoalsTree> {
     widget.onPathChanged?.call();
   }
 
-  @override
-  void dispose() {
-    for (final controller in _endCondControllers.values) {
-      controller.dispose();
-    }
 
+
+
+
+
+
+
+    @override
+  void dispose() {
     super.dispose();
   }
 
@@ -210,6 +202,78 @@ class _GoalsTreeState extends State<GoalsTree> {
               if (updated != null) {
                 setState(() {
                   CommandsStore.setCommands(updated);
+                });
+                widget.onPathChanged?.call();
+              }
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+    Widget _buildTriggerRow(Goal goal) {
+    final List<DropdownMenuItem<String>> items = [];
+    final seenTriggers = <String>{};
+
+    for (final trigger in TriggersStore.triggers) {
+      if (seenTriggers.contains(trigger)) continue;
+      seenTriggers.add(trigger);
+      items.add(DropdownMenuItem<String>(
+        value: trigger,
+        child: Text(trigger),
+      ));
+    }
+
+    final selectedValue = goal.endCond.isEmpty ? null : goal.endCond;
+
+    if (selectedValue != null && !seenTriggers.contains(selectedValue)) {
+      items.insert(
+        0,
+        DropdownMenuItem<String>(
+          value: selectedValue,
+          child: Text('Unknown Trigger ($selectedValue)'),
+        ),
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            value: selectedValue,
+            decoration: const InputDecoration(
+              labelText: 'End Condition',
+              border: OutlineInputBorder(),
+            ),
+            isExpanded: true,
+            hint: const Text('No Trigger'),
+            items: items,
+            onChanged: (value) {
+              setState(() {
+                goal.endCond = value ?? '';
+              });
+              widget.onPathChanged?.call();
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+        Tooltip(
+          message: 'Manage Triggers',
+          child: IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () async {
+              final updated = await Navigator.of(context)
+                  .push<List<String>>(MaterialPageRoute(
+                builder: (context) => TriggerPage(
+                  triggers: TriggersStore.triggers,
+                ),
+              ));
+
+              if (updated != null) {
+                setState(() {
+                  TriggersStore.setTriggers(updated);
                 });
                 widget.onPathChanged?.call();
               }
@@ -339,24 +403,25 @@ class _GoalsTreeState extends State<GoalsTree> {
                             children: [
                 _buildCommandRow(goal),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _getController(
-                    _endCondControllers,
-                    goal,
-                    goal.endCond,
-                  ),
-                  minLines: 1,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'End Condition',
-                    hintText: 'Enter end condition...',
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (value) {
-                    goal.endCond = value;
-                    widget.onPathChanged?.call();
-                  },
-                ),
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                _buildTriggerRow(goal),
               ],
             ),
           ),

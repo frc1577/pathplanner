@@ -678,6 +678,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       PrefsKeys.controllerSettings: ControllerSettingsStore.toJson(),
       PrefsKeys.headingStrats: HeadingStratsStore.toJson(),
       PrefsKeys.commands: CommandsStore.toJson(),
+      PrefsKeys.triggers: TriggersStore.toJson(),
     };
 
     settingsFile.writeAsString(encoder.convert(settings)).then((_) {

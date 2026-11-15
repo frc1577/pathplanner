@@ -637,6 +637,41 @@ class CommandsStore {
   }
 }
 
+class TriggersStore {
+  static List<String> _triggers = _defaultTriggers();
+
+  static List<String> get triggers => List.unmodifiable(_triggers);
+
+  static void setTriggers(List<String> triggers) {
+    _triggers = List.of(triggers);
+  }
+
+  static void loadFromJson(dynamic json) {
+    if (json is List) {
+      final parsed = <String>[];
+      for (final entry in json) {
+        final value = entry?.toString() ?? '';
+        if (value.isNotEmpty) {
+          parsed.add(value);
+        }
+      }
+
+      _triggers = parsed;
+      return;
+    }
+
+    _triggers = _defaultTriggers();
+  }
+
+  static List<String> toJson() {
+    return List.of(_triggers);
+  }
+
+  static List<String> _defaultTriggers() {
+    return [];
+  }
+}
+
 class ControllerSettingsStore {
   static List<ControllerSetting> _settings = _defaultSettings();
 
