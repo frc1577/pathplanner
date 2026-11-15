@@ -602,6 +602,41 @@ class PhysicsSimService {
   }
 }
 
+class CommandsStore {
+  static List<String> _commands = _defaultCommands();
+
+  static List<String> get commands => List.unmodifiable(_commands);
+
+  static void setCommands(List<String> commands) {
+    _commands = List.of(commands);
+  }
+
+  static void loadFromJson(dynamic json) {
+    if (json is List) {
+      final parsed = <String>[];
+      for (final entry in json) {
+        final value = entry?.toString() ?? '';
+        if (value.isNotEmpty) {
+          parsed.add(value);
+        }
+      }
+
+      _commands = parsed;
+      return;
+    }
+
+    _commands = _defaultCommands();
+  }
+
+  static List<String> toJson() {
+    return List.of(_commands);
+  }
+
+  static List<String> _defaultCommands() {
+    return [];
+  }
+}
+
 class ControllerSettingsStore {
   static List<ControllerSetting> _settings = _defaultSettings();
 

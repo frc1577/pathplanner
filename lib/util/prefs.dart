@@ -52,6 +52,7 @@ class PrefsKeys {
   static const String robotFeatures = 'robotFeatures';
   static const String controllerSettings = 'controllerSettings';
   static const String headingStrats = 'headingStrats';
+  static const String commands = 'commands';
 }
 
 class Defaults {

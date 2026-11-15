@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pathplanner/pages/command_page.dart';
 import 'package:pathplanner/pages/controller_settings_page.dart';
 import 'package:pathplanner/pages/heading_strats_page.dart';
 import 'package:pathplanner/path/goal.dart';
@@ -32,7 +33,6 @@ class GoalsTree extends StatefulWidget {
 
 class _GoalsTreeState extends State<GoalsTree> {
   final Map<Goal, int> _selectedTabs = {};
-  final Map<Goal, TextEditingController> _commandControllers = {};
   final Map<Goal, TextEditingController> _endCondControllers = {};
 
   List<Goal> _cloneGoals() =>
@@ -130,7 +130,7 @@ class _GoalsTreeState extends State<GoalsTree> {
     });
   }
 
-  void _updateWaypoint(Waypoint waypoint, void Function() update) {
+      void _updateWaypoint(Waypoint waypoint, void Function() update) {
     setState(() {
       update();
       widget.path.rebuildPath();
@@ -141,15 +141,83 @@ class _GoalsTreeState extends State<GoalsTree> {
 
   @override
   void dispose() {
-    for (final controller in _commandControllers.values) {
-      controller.dispose();
-    }
-
     for (final controller in _endCondControllers.values) {
       controller.dispose();
     }
 
     super.dispose();
+  }
+
+  Widget _buildCommandRow(Goal goal) {
+    final List<DropdownMenuItem<String>> items = [];
+    final seenCommands = <String>{};
+
+    for (final command in CommandsStore.commands) {
+      if (seenCommands.contains(command)) continue;
+      seenCommands.add(command);
+      items.add(DropdownMenuItem<String>(
+        value: command,
+        child: Text(command),
+      ));
+    }
+
+    final selectedValue = goal.command.isEmpty ? null : goal.command;
+
+    if (selectedValue != null && !seenCommands.contains(selectedValue)) {
+      items.insert(
+        0,
+        DropdownMenuItem<String>(
+          value: selectedValue,
+          child: Text('Unknown Command ($selectedValue)'),
+        ),
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            value: selectedValue,
+            decoration: const InputDecoration(
+              labelText: 'Command',
+              border: OutlineInputBorder(),
+            ),
+            isExpanded: true,
+            hint: const Text('No Command'),
+            items: items,
+            onChanged: (value) {
+              setState(() {
+                goal.command = value ?? '';
+              });
+              widget.onPathChanged?.call();
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+        Tooltip(
+          message: 'Manage Commands',
+          child: IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () async {
+              final updated = await Navigator.of(context)
+                  .push<List<String>>(MaterialPageRoute(
+                builder: (context) => CommandPage(
+                  commands: CommandsStore.commands,
+                ),
+              ));
+
+              if (updated != null) {
+                setState(() {
+                  CommandsStore.setCommands(updated);
+                });
+                widget.onPathChanged?.call();
+              }
+            },
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -268,25 +336,8 @@ class _GoalsTreeState extends State<GoalsTree> {
           Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
-              children: [
-                TextFormField(
-                  controller: _getController(
-                    _commandControllers,
-                    goal,
-                    goal.command,
-                  ),
-                  minLines: 1,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Command',
-                    hintText: 'Enter command...',
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (value) {
-                    goal.command = value;
-                    widget.onPathChanged?.call();
-                  },
-                ),
+                            children: [
+                _buildCommandRow(goal),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _getController(

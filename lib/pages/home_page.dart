@@ -582,6 +582,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             Defaults.robotFeatures);
     ControllerSettingsStore.loadFromJson(json[PrefsKeys.controllerSettings]);
     HeadingStratsStore.loadFromJson(json[PrefsKeys.headingStrats]);
+    CommandsStore.loadFromJson(json[PrefsKeys.commands]);
   }
 
   void _setPrefDoubleFromJSON(
@@ -676,6 +677,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               Defaults.robotFeatures,
       PrefsKeys.controllerSettings: ControllerSettingsStore.toJson(),
       PrefsKeys.headingStrats: HeadingStratsStore.toJson(),
+      PrefsKeys.commands: CommandsStore.toJson(),
     };
 
     settingsFile.writeAsString(encoder.convert(settings)).then((_) {
