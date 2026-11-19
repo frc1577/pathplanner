@@ -36,6 +36,25 @@ class GoalsTree extends StatefulWidget {
 
 class _GoalsTreeState extends State<GoalsTree> {
   final Map<Goal, int> _selectedTabs = {};
+  final Map<Goal, TextEditingController> _nameControllers = {};
+
+  TextEditingController _controllerForGoal(Goal goal) {
+    final existing = _nameControllers[goal];
+    if (existing != null) {
+      if (existing.text != goal.name) {
+        final selection = existing.selection;
+        existing.text = goal.name;
+        if (selection.isValid && selection.end <= goal.name.length) {
+          existing.selection = selection;
+        }
+      }
+      return existing;
+    }
+
+    final controller = TextEditingController(text: goal.name);
+    _nameControllers[goal] = controller;
+    return controller;
+  }
 
   List<Goal> _cloneGoals() =>
       [for (final goal in widget.path.goals) goal.clone()];
@@ -84,7 +103,9 @@ class _GoalsTreeState extends State<GoalsTree> {
     if (widget.path.goals.length <= 1) return;
 
     _changeGoals(() {
-      widget.path.goals.removeAt(index);
+      final removed = widget.path.goals.removeAt(index);
+      _nameControllers.remove(removed)?.dispose();
+      _selectedTabs.remove(removed);
     });
   }
 
@@ -121,7 +142,7 @@ class _GoalsTreeState extends State<GoalsTree> {
     });
   }
 
-      void _updateWaypoint(Waypoint waypoint, void Function() update) {
+  void _updateWaypoint(Waypoint waypoint, void Function() update) {
     setState(() {
       update();
       widget.path.rebuildPath();
@@ -130,16 +151,28 @@ class _GoalsTreeState extends State<GoalsTree> {
     widget.onPathChanged?.call();
   }
 
-
-
-
-
-
-
-
-    @override
+  @override
   void dispose() {
+    for (final controller in _nameControllers.values) {
+      controller.dispose();
+    }
+    _nameControllers.clear();
     super.dispose();
+  }
+
+  Widget _buildGoalNameField(Goal goal) {
+    return TextField(
+      controller: _controllerForGoal(goal),
+      decoration: const InputDecoration(
+        labelText: 'Goal Name',
+        hintText: 'Enter goal name',
+        border: OutlineInputBorder(),
+      ),
+      onChanged: (value) {
+        goal.name = value;
+        widget.onPathChanged?.call();
+      },
+    );
   }
 
   Widget _buildCommandRow(Goal goal) {
@@ -214,7 +247,7 @@ class _GoalsTreeState extends State<GoalsTree> {
     );
   }
 
-    Widget _buildTriggerRow(Goal goal) {
+  Widget _buildTriggerRow(Goal goal) {
     final List<DropdownMenuItem<String>> items = [];
     final seenTriggers = <String>{};
 
@@ -312,10 +345,13 @@ class _GoalsTreeState extends State<GoalsTree> {
 
   Widget _buildGoal(int index, Goal goal) {
     final selectedTab = _selectedTabs[goal] ?? 0;
+    final headerTitle = goal.name.trim().isEmpty
+        ? 'Goal ${index + 1}'
+        : 'Goal ${index + 1}: ${goal.name.trim()}';
 
     return TreeCardNode(
       key: ValueKey('goal_${index}_${goal.waypoints.length}'),
-      title: Text('Goal ${index + 1}'),
+      title: Text(headerTitle),
       leading: const Icon(Icons.flag_outlined),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -402,28 +438,12 @@ class _GoalsTreeState extends State<GoalsTree> {
           Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
-                            children: [
+              children: [
+                _buildGoalNameField(goal),
+                const SizedBox(height: 12),
                 _buildCommandRow(goal),
                 const SizedBox(height: 12),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                                _buildTriggerRow(goal),
+                _buildTriggerRow(goal),
               ],
             ),
           ),
@@ -551,7 +571,7 @@ class _GoalsTreeState extends State<GoalsTree> {
               });
               widget.onControllerSettingsChanged?.call();
             }
-              final updatedStrats =
+            final updatedStrats =
                 await Navigator.of(context).push<List<HeadingStrat>>(
               MaterialPageRoute(
                 builder: (context) => HeadingStratsPage(
@@ -564,7 +584,7 @@ class _GoalsTreeState extends State<GoalsTree> {
                 HeadingStratsStore.setSettings(updatedStrats);
               });
               widget.onHeadingStratsChanged?.call();
-            }          
+            }
           },
           gearTooltip: 'Edit Controller Settings',
         ),
