@@ -583,6 +583,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     ControllerSettingsStore.loadFromJson(json[PrefsKeys.controllerSettings]);
     HeadingStratsStore.loadFromJson(json[PrefsKeys.headingStrats]);
     CommandsStore.loadFromJson(json[PrefsKeys.commands]);
+    TriggersStore.loadFromJson(json[PrefsKeys.triggers]);
   }
 
   void _setPrefDoubleFromJSON(
