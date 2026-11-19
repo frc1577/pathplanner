@@ -29,6 +29,7 @@ class PathTree extends StatefulWidget {
   final VoidCallback? onPathChanged;
   final VoidCallback? onPathChangedNoSim;
   final VoidCallback? onControllerSettingsChanged;
+  final VoidCallback? onHeadingStratsChanged;
   final WaypointsTreeController? waypointsTreeController;
   final int? initiallySelectedWaypoint;
   final int? initiallySelectedZone;
@@ -72,6 +73,7 @@ class PathTree extends StatefulWidget {
     this.pathRuntime,
     this.onPathChangedNoSim,
     this.onControllerSettingsChanged,
+    this.onHeadingStratsChanged,
     required this.holonomicMode,
     required this.defaultConstraints,
     required this.prefs,
@@ -107,6 +109,7 @@ class _PathTreeState extends State<PathTree> {
                         undoStack: widget.undoStack,
                         onPathChanged: widget.onPathChanged,
                         onControllerSettingsChanged: widget.onControllerSettingsChanged,
+                        onHeadingStratsChanged: widget.onHeadingStratsChanged,
                       ),
                     ],
                   )
@@ -362,6 +365,7 @@ class _PathTreeState extends State<PathTree> {
         onWaypointSelected: widget.onWaypointSelected,
         onPathChanged: widget.onPathChanged,
         onControllerSettingsChanged: widget.onControllerSettingsChanged,
+        onHeadingStratsChanged: widget.onHeadingStratsChanged,
         undoStack: widget.undoStack,
         holonomicMode: widget.holonomicMode,
       );

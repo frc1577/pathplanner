@@ -19,6 +19,7 @@ class GoalsTree extends StatefulWidget {
   final ChangeStack undoStack;
   final VoidCallback? onPathChanged;
   final VoidCallback? onControllerSettingsChanged;
+  final VoidCallback? onHeadingStratsChanged;
 
   const GoalsTree({
     super.key,
@@ -26,6 +27,7 @@ class GoalsTree extends StatefulWidget {
     required this.undoStack,
     this.onPathChanged,
     this.onControllerSettingsChanged,
+    this.onHeadingStratsChanged,
   });
 
   @override
@@ -486,11 +488,11 @@ class _GoalsTreeState extends State<GoalsTree> {
         ),
         _buildWaypointDropdownRow(
           label: 'Heading Strat',
-          value: waypoint.headingStratId,
+          value: waypoint.headingStratName,
           items: [
             for (final strat in HeadingStratsStore.settings)
               DropdownMenuItem(
-                value: strat.id,
+                value: strat.name,
                 child: Text(strat.name),
               ),
           ],
@@ -498,7 +500,7 @@ class _GoalsTreeState extends State<GoalsTree> {
               ? null
               : (value) => _updateWaypoint(
                     waypoint,
-                    () => waypoint.headingStratId = value,
+                    () => waypoint.headingStratName = value,
                   ),
           onGearPressed: () async {
             final updatedStrats =
@@ -549,6 +551,20 @@ class _GoalsTreeState extends State<GoalsTree> {
               });
               widget.onControllerSettingsChanged?.call();
             }
+              final updatedStrats =
+                await Navigator.of(context).push<List<HeadingStrat>>(
+              MaterialPageRoute(
+                builder: (context) => HeadingStratsPage(
+                  headingStrats: HeadingStratsStore.settings,
+                ),
+              ),
+            );
+            if (updatedStrats != null) {
+              setState(() {
+                HeadingStratsStore.setSettings(updatedStrats);
+              });
+              widget.onHeadingStratsChanged?.call();
+            }          
           },
           gearTooltip: 'Edit Controller Settings',
         ),

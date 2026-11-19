@@ -277,7 +277,7 @@ class PathPlannerPath {
       Waypoint(
         anchor: anchorPos,
         holonomicAngle: heading,
-        headingStratId: HeadingStratsStore.createSimpleHeadingStrat(
+        headingStratName: HeadingStratsStore.createSimpleHeadingStrat(
           degrees: heading.degrees.toDouble(),
           pathName: name,
           waypointNumber: waypoints.length + 1,
@@ -300,7 +300,7 @@ class PathPlannerPath {
       holonomicAngle: before.holonomicAngle,
       tolerance: before.tolerance,
       toleranceDeg: before.toleranceDeg,
-      headingStratId: HeadingStratsStore.createSimpleHeadingStrat(
+      headingStratName: HeadingStratsStore.createSimpleHeadingStrat(
         degrees: before.holonomicAngle.degrees.toDouble(),
         pathName: name,
         waypointNumber: waypointIdx + 2,

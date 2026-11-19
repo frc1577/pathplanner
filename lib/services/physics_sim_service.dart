@@ -385,7 +385,7 @@ class PhysicsSimService {
       final ControllerSetting? currentSettings =
           _getControllerSettingsByName(path, end.controllerSettingName);
       final HeadingStrat? headingStrat =
-          _getHeadingStratById(end.headingStratId);
+          _getHeadingStratByName(end.headingStratName);
 
       xController.setPID(
         currentSettings?.kp ?? end.kp.toDouble(),
@@ -591,15 +591,15 @@ class PhysicsSimService {
     return null;
   }
 
-  static HeadingStrat? _getHeadingStratById(String? id) {
-    if (id == null) return null;
+  static HeadingStrat? _getHeadingStratByName(String? name) {
+      if (name == null) return null;
 
-    for (final headingStrat in HeadingStratsStore.settings) {
-      if (headingStrat.id == id) return headingStrat;
+      for (final headingStrat in HeadingStratsStore.settings) {
+        if (headingStrat.name == name) return headingStrat;
+      }
+
+      return null;
     }
-
-    return null;
-  }
 }
 
 class CommandsStore {
@@ -741,17 +741,16 @@ class HeadingStratsStore {
 
   static List<HeadingStrat> get settings => List.unmodifiable(_headingStrats);
 
-  static String createSimpleHeadingStrat({
+    static String createSimpleHeadingStrat({
     required double degrees,
     required String pathName,
     required int waypointNumber,
   }) {
-    final id = '${DateTime.now().microsecondsSinceEpoch}_waypoint';
+    final name = '$pathName/Waypoint $waypointNumber/';
     _headingStrats = [
       ..._headingStrats,
       HeadingStrat(
-        id: id,
-        name: '$pathName/Waypoint $waypointNumber/',
+        name: name,
         type: HeadingStratKinds.simple,
         degrees: degrees,
         targetX: 0.0,
@@ -761,7 +760,7 @@ class HeadingStratsStore {
         condition: '',
       ),
     ];
-    return id;
+    return name;
   }
 
   static void setSettings(List<HeadingStrat> headingStrats) {

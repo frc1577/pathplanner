@@ -23,6 +23,7 @@ class WaypointsTree extends StatefulWidget {
   final ValueChanged<int>? onWaypointDeleted;
   final VoidCallback? onPathChanged;
   final VoidCallback? onControllerSettingsChanged;
+  final VoidCallback? onHeadingStratsChanged;
   final WaypointsTreeController? controller;
   final int? initialSelectedWaypoint;
   final ChangeStack undoStack;
@@ -35,6 +36,7 @@ class WaypointsTree extends StatefulWidget {
     this.onWaypointSelected,
     this.onPathChanged,
     this.onControllerSettingsChanged,
+    this.onHeadingStratsChanged,
     this.controller,
     this.initialSelectedWaypoint,
     this.onWaypointDeleted,
@@ -360,15 +362,15 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                   final seenIds = <String>{};
 
                   for (final headingStrat in HeadingStratsStore.settings) {
-                    if (seenIds.contains(headingStrat.id)) continue;
-                    seenIds.add(headingStrat.id);
+                    if (seenIds.contains(headingStrat.name)) continue;
+                    seenIds.add(headingStrat.name);
                     items.add(DropdownMenuItem<String>(
-                      value: headingStrat.id,
+                      value: headingStrat.name,
                       child: Text(headingStrat.name),
                     ));
                   }
 
-                  String? selectedValue = waypoint.headingStratId;
+                  String? selectedValue = waypoint.headingStratName;
                   if (selectedValue != null &&
                       !seenIds.contains(selectedValue)) {
                     items.insert(
@@ -392,7 +394,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                               ? null
                               : (value) {
                                   setState(() {
-                                    waypoint.headingStratId = value;
+                                    waypoint.headingStratName = value;
                                   });
                                   widget.onPathChanged?.call();
                                 },
@@ -418,7 +420,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                               setState(() {
                                 HeadingStratsStore.setSettings(updated);
                               });
-                              widget.onControllerSettingsChanged?.call();
+                              widget.onHeadingStratsChanged?.call();
                               widget.onPathChanged?.call();
                             }
                           },

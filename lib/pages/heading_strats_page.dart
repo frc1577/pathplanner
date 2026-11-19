@@ -23,7 +23,6 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
     super.initState();
     _headingStrats = widget.headingStrats
         .map((strat) => <String, Object?>{
-              'id': strat.id,
               'name': strat.name,
               'type': strat.type,
               'degrees': strat.degrees,
@@ -38,9 +37,10 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
 
   void _addHeadingStrat() {
     setState(() {
+      final int newIndex = _headingStrats.length + 1;
       _headingStrats.add(<String, Object?>{
         'id': DateTime.now().millisecondsSinceEpoch.toString(),
-        'name': 'New Heading Strat',
+        'name': 'New Heading Strat $newIndex',
         'type': HeadingStratKinds.simple,
         'degrees': 0.0,
         'targetX': 0.0,
@@ -64,7 +64,6 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
     widget.onChanged?.call([
       for (final entry in _headingStrats)
         HeadingStrat(
-          id: entry['id'].toString(),
           name: entry['name'].toString(),
           type: entry['type'].toString(),
           degrees: (entry['degrees'] as num).toDouble(),
@@ -92,7 +91,6 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
               final out = [
                 for (final entry in _headingStrats)
                   HeadingStrat(
-                    id: entry['id'].toString(),
                     name: entry['name'].toString(),
                     type: entry['type'].toString(),
                     degrees: (entry['degrees'] as num).toDouble(),

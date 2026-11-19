@@ -320,7 +320,7 @@ void main() {
     await widgetTester.pumpAndSettle();
 
     expect(pathChanged, true);
-    expect(path.waypoints[1].headingStratId, 'test-heading');
+    expect(path.waypoints[1].headingStratName, 'test-heading');
   });
 
   testWidgets('Controller settings dropdown', (widgetTester) async {

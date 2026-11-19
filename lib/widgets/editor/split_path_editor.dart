@@ -44,6 +44,7 @@ class SplitPathEditor extends StatefulWidget {
   final bool simulate;
   final VoidCallback? onPathChanged;
   final VoidCallback? onControllerSettingsChanged;
+  final VoidCallback? onHeadingStratsChanged;
 
   const SplitPathEditor({
     required this.prefs,
@@ -55,6 +56,7 @@ class SplitPathEditor extends StatefulWidget {
     this.simulate = false,
     this.onPathChanged,
     this.onControllerSettingsChanged,
+    this.onHeadingStratsChanged,
     super.key,
   });
 
@@ -120,29 +122,29 @@ class _SplitPathEditorState extends State<SplitPathEditor>
   }
 
   void _applyWaypointHeadingStrategy(Waypoint waypoint, int waypointNumber) {
-    HeadingStrat? current;
-    for (final strat in HeadingStratsStore.settings) {
-      if (strat.id == waypoint.headingStratId) {
-        current = strat;
-        break;
+      HeadingStrat? current;
+      for (final strat in HeadingStratsStore.settings) {
+        if (strat.name == waypoint.headingStratName) {
+          current = strat;
+          break;
+        }
+      }
+
+      if (waypoint.headingStratName != null &&
+          current?.type != HeadingStratKinds.simple) {
+        return;
+      }
+
+      if (current == null) {
+        waypoint.headingStratName = HeadingStratsStore.createSimpleHeadingStrat(
+          degrees: waypoint.holonomicAngle.degrees.toDouble(),
+          pathName: widget.path.name,
+          waypointNumber: waypointNumber,
+        );
+      } else {
+        current.degrees = waypoint.holonomicAngle.degrees.toDouble();
       }
     }
-
-    if (waypoint.headingStratId != null &&
-        current?.type != HeadingStratKinds.simple) {
-      return;
-    }
-
-    if (current == null) {
-      waypoint.headingStratId = HeadingStratsStore.createSimpleHeadingStrat(
-        degrees: waypoint.holonomicAngle.degrees.toDouble(),
-        pathName: widget.path.name,
-        waypointNumber: waypointNumber,
-      );
-    } else {
-      current.degrees = waypoint.holonomicAngle.degrees.toDouble();
-    }
-  }
 
   @override
   void initState() {
@@ -628,6 +630,12 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                         _simulatePath();
                       });
                       widget.onControllerSettingsChanged?.call();
+                    },
+                    onHeadingStratsChanged: () {
+                      setState(() {
+                        _simulatePath();
+                      });
+                      widget.onHeadingStratsChanged?.call();
                     },
                     onWaypointDeleted: (waypointIdx) {
                       widget.undoStack.add(Change(

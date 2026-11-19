@@ -31,7 +31,6 @@ class HeadingStratKinds {
 }
 
 class HeadingStrat {
-  final String id;
   String name;
   String type;
   double degrees;
@@ -42,7 +41,6 @@ class HeadingStrat {
   String condition;
 
   HeadingStrat({
-    required this.id,
     required this.name,
     required this.type,
     required this.degrees,
@@ -60,23 +58,48 @@ class HeadingStrat {
       return double.tryParse(value.toString()) ?? defaultValue;
     }
 
+    String type = json['type']?.toString() ?? HeadingStratKinds.simple;
     return HeadingStrat(
-      id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
-      type: json['type']?.toString() ?? HeadingStratKinds.simple,
+      type: type,
       degrees: readDouble(json['degrees'], readDouble(json['headingDeg'], 0.0)),
       targetX: readDouble(json['targetX'], 0.0),
       targetY: readDouble(json['targetY'], 0.0),
       offsetDeg:
           readDouble(json['offsetDeg'], readDouble(json['headingDeg'], 0.0)),
-        falseDegrees: readDouble(json['falseDegrees'], 0.0),
+      falseDegrees: readDouble(json['falseDegrees'], 0.0),
       condition: json['condition']?.toString() ?? '',
     );
   }
 
   Map<String, dynamic> toJson() {
+    if (type == HeadingStratKinds.simpleOnCondition ||
+        type == HeadingStratKinds.faceTargetOnCondition) {
+      // On-condition strats are kept out of the settings JSON.
+      return {
+        'name': name,
+        'type': type,
+      };
+    }
+
+    if (type == HeadingStratKinds.simple) {
+      return {
+        'name': name,
+        'type': type,
+        'degrees': degrees,
+      };
+    }
+    if (type == HeadingStratKinds.faceTarget) {
+      return {
+        'name': name,
+        'type': type,
+        'offsetDeg': offsetDeg,
+        'targetX': targetX,
+        'targetY': targetY,
+      };
+    }
+
     return {
-      'id': id,
       'name': name,
       'type': type,
       'degrees': degrees,
@@ -90,7 +113,6 @@ class HeadingStrat {
 
   HeadingStrat clone() {
     return HeadingStrat(
-      id: id,
       name: name,
       type: type,
       degrees: degrees,
@@ -109,7 +131,6 @@ class HeadingStrat {
   bool get isFaceTarget =>
       type == HeadingStratKinds.faceTarget ||
       type == HeadingStratKinds.faceTargetOnCondition;
-
   Rotation2d? resolveHeading(Translation2d robotPose) {
     if ((type == HeadingStratKinds.simpleOnCondition ||
             type == HeadingStratKinds.faceTargetOnCondition) &&
@@ -244,3 +265,4 @@ class _BooleanExpressionParser {
     }
   }
 }
+

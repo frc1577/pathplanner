@@ -17,7 +17,7 @@ class Waypoint {
   bool isLocked;
   String? linkedName;
   String? controllerSettingName; // Reference to a controller setting
-  String? headingStratId;
+  String? headingStratName;
 
   bool _isAnchorDragging = false;
   bool _isHeadingDragging = false;
@@ -33,7 +33,7 @@ class Waypoint {
     this.isLocked = false,
     this.linkedName,
     this.controllerSettingName,
-    this.headingStratId,
+    this.headingStratName,
   }) : holonomicAngle = holonomicAngle ?? const Rotation2d();
 
   bool get isAnchorDragging => _isAnchorDragging;
@@ -48,7 +48,7 @@ class Waypoint {
           isLocked: json['isLocked'] ?? false,
           linkedName: json['linkedName'],
           controllerSettingName: json['controllerSettings'],
-          headingStratId: json['headingStratId'],
+          headingStratName: json['headingStratId'],
         );
 
   static Rotation2d _holonomicAngleFromJson(Map<String, dynamic> json) {
@@ -78,7 +78,7 @@ class Waypoint {
       'toleranceDeg': toleranceDeg,
       'linkedName': linkedName,
       'controllerSettings': controllerSettingName,
-      'headingStrat': headingStratId,
+      'headingStrat': headingStratName,
     };
   }
 
@@ -106,8 +106,8 @@ class Waypoint {
       toleranceDeg: toleranceDeg,
       isLocked: isLocked,
       linkedName: linkedName,
-      controllerSettingName: controllerSettingName,
-      headingStratId: headingStratId,
+            controllerSettingName: controllerSettingName,
+      headingStratName: headingStratName,
     );
   }
 
@@ -173,9 +173,9 @@ class Waypoint {
       other.toleranceDeg == toleranceDeg &&
       other.linkedName == linkedName &&
       other.controllerSettingName == controllerSettingName &&
-      other.headingStratId == headingStratId;
+      other.headingStratName == headingStratName;
 
   @override
   int get hashCode => Object.hash(anchor, holonomicAngle, kp, ki, kd, tolerance,
-      toleranceDeg, linkedName, controllerSettingName, headingStratId);
+      toleranceDeg, linkedName, controllerSettingName, headingStratName);
 }
