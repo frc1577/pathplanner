@@ -5,7 +5,6 @@ import 'package:pathplanner/util/wpimath/geometry.dart';
 void main() {
   test('conditional heading uses robot x position', () {
     final strat = HeadingStrat(
-      id: 'test',
       name: 'test',
       type: HeadingStratKinds.simpleOnCondition,
       degrees: 90,
@@ -22,7 +21,6 @@ void main() {
 
   test('invalid conditional heading fails closed', () {
     final strat = HeadingStrat(
-      id: 'test',
       name: 'test',
       type: HeadingStratKinds.simpleOnCondition,
       degrees: 90,
@@ -38,7 +36,6 @@ void main() {
 
   test('conditional heading uses another heading when false', () {
     final strat = HeadingStrat(
-      id: 'conditional',
       name: 'conditional',
       type: HeadingStratKinds.simpleOnCondition,
       degrees: 90,

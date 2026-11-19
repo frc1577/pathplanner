@@ -35,7 +35,6 @@ void main() {
     selectedWaypoint = null;
     HeadingStratsStore.setSettings([
       HeadingStrat(
-        id: 'test-heading',
         name: 'Test Heading',
         type: HeadingStratKinds.simple,
         degrees: 45,
