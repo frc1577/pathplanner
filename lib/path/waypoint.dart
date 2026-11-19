@@ -48,7 +48,7 @@ class Waypoint {
           isLocked: json['isLocked'] ?? false,
           linkedName: json['linkedName'],
           controllerSettingName: json['controllerSettings'],
-          headingStratName: json['headingStratId'],
+          headingStratName: json['headingStrat'],
         );
 
   static Rotation2d _holonomicAngleFromJson(Map<String, dynamic> json) {
