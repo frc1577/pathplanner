@@ -81,6 +81,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
   int? _selectedMarker;
   late bool _treeOnRight;
   Waypoint? _draggedPoint;
+  int? _draggedWaypointIdx;
   Waypoint? _dragOldValue;
   int? _draggedRotationIdx;
   Rotation2d? _dragRotationOldValue;
@@ -109,6 +110,16 @@ class _SplitPathEditorState extends State<SplitPathEditor>
     }
   }
 
+  // Helper to check if we're dragging the start pose for a GoalPicker
+  bool _isDraggingStartPose() {
+    return widget.path is GoalPicker && _draggedWaypointIdx == 0;
+  }
+
+  // Helper to check if we're dragging the start rotation for a GoalPicker
+  bool _isDraggingStartRotation(int? rotationIdx) {
+    return widget.path is GoalPicker && rotationIdx == -2;
+  }
+
   RuntimeDisplay? _runtimeDisplay;
 
   List<HeadingStrat> _cloneHeadingStrats() {
@@ -116,35 +127,37 @@ class _SplitPathEditorState extends State<SplitPathEditor>
   }
 
   void _restoreHeadingChange(_WaypointHeadingChange change, int index) {
-    waypoints[index] = change.waypoint.clone();
+    if (index >= 0 && index < waypoints.length) {
+      waypoints[index] = change.waypoint.clone();
+    }
     HeadingStratsStore.setSettings(
         [for (final strat in change.headingStrats) strat.clone()]);
   }
 
   void _applyWaypointHeadingStrategy(Waypoint waypoint, int waypointNumber) {
-      HeadingStrat? current;
-      for (final strat in HeadingStratsStore.settings) {
-        if (strat.name == waypoint.headingStratName) {
-          current = strat;
-          break;
-        }
-      }
-
-      if (waypoint.headingStratName != null &&
-          current?.type != HeadingStratKinds.simple) {
-        return;
-      }
-
-      if (current == null) {
-        waypoint.headingStratName = HeadingStratsStore.createSimpleHeadingStrat(
-          degrees: waypoint.holonomicAngle.degrees.toDouble(),
-          pathName: widget.path.name,
-          waypointNumber: waypointNumber,
-        );
-      } else {
-        current.degrees = waypoint.holonomicAngle.degrees.toDouble();
+    HeadingStrat? current;
+    for (final strat in HeadingStratsStore.settings) {
+      if (strat.name == waypoint.headingStratName) {
+        current = strat;
+        break;
       }
     }
+
+    if (waypoint.headingStratName != null &&
+        current?.type != HeadingStratKinds.simple) {
+      return;
+    }
+
+    if (current == null) {
+      waypoint.headingStratName = HeadingStratsStore.createSimpleHeadingStrat(
+        degrees: waypoint.holonomicAngle.degrees.toDouble(),
+        pathName: widget.path.name,
+        waypointNumber: waypointNumber,
+      );
+    } else {
+      current.degrees = waypoint.holonomicAngle.degrees.toDouble();
+    }
+  }
 
   @override
   void initState() {
@@ -208,16 +221,16 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                 }
                 for (int i = waypoints.length - 1; i >= 0; i--) {
                   Waypoint w = waypoints[i];
-          if (w.isPointInAnchor(
-              _xPixelsToMeters(details.localPosition.dx),
-              _yPixelsToMeters(details.localPosition.dy),
-              _pixelsToMeters(PathPainterUtil.uiPointSizeToPixels(
-                25, PathPainter.scale, widget.fieldImage))) ||
-            w.isPointInHeadingHandle(
-              _xPixelsToMeters(details.localPosition.dx),
-              _yPixelsToMeters(details.localPosition.dy),
-              _pixelsToMeters(PathPainterUtil.uiPointSizeToPixels(
-                20, PathPainter.scale, widget.fieldImage)))) {
+                  if (w.isPointInAnchor(
+                          _xPixelsToMeters(details.localPosition.dx),
+                          _yPixelsToMeters(details.localPosition.dy),
+                          _pixelsToMeters(PathPainterUtil.uiPointSizeToPixels(
+                              25, PathPainter.scale, widget.fieldImage))) ||
+                      w.isPointInHeadingHandle(
+                          _xPixelsToMeters(details.localPosition.dx),
+                          _yPixelsToMeters(details.localPosition.dy),
+                          _pixelsToMeters(PathPainterUtil.uiPointSizeToPixels(
+                              20, PathPainter.scale, widget.fieldImage)))) {
                     _setSelectedWaypoint(i);
                     return;
                   }
@@ -230,7 +243,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                   [PathPlannerPath.cloneWaypoints(waypoints), oldHeadingStrats],
                   () {
                     setState(() {
-                        _addWaypointAt(Translation2d(
+                      _addWaypointAt(Translation2d(
                           _xPixelsToMeters(details.localPosition.dx),
                           _yPixelsToMeters(details.localPosition.dy)));
                       widget.path.generateAndSavePath();
@@ -239,13 +252,12 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                   },
                   (oldValue) {
                     setState(() {
-                      widget.path.waypoints =
-                          PathPlannerPath.cloneWaypoints(
-                              oldValue[0] as List<Waypoint>);
-                        HeadingStratsStore.setSettings([
-                          for (final strat in oldValue[1] as List<HeadingStrat>)
-                            strat.clone(),
-                        ]);
+                      widget.path.waypoints = PathPlannerPath.cloneWaypoints(
+                          oldValue[0] as List<Waypoint>);
+                      HeadingStratsStore.setSettings([
+                        for (final strat in oldValue[1] as List<HeadingStrat>)
+                          strat.clone(),
+                      ]);
                       _setSelectedWaypoint(null);
                       widget.path.generateAndSavePath();
                       _simulatePath();
@@ -267,8 +279,9 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                       _pixelsToMeters(PathPainterUtil.uiPointSizeToPixels(
                           20, PathPainter.scale, widget.fieldImage)))) {
                     _draggedPoint = w;
+                    _draggedWaypointIdx = i;
                     _dragOldValue = w.clone();
-                    break;
+                    return;
                   }
                 }
 
@@ -335,8 +348,9 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                     num? closestX;
                     num? closestY;
 
-                    for (Waypoint w in waypoints) {
-                      if (w != _draggedPoint) {
+                    for (int i = 0; i < waypoints.length; i++) {
+                      if (i != _draggedWaypointIdx) {
+                        Waypoint w = waypoints[i];
                         if (closestX == null ||
                             (targetX - w.anchor.x).abs() <
                                 (targetX - closestX).abs()) {
@@ -361,6 +375,15 @@ class _SplitPathEditorState extends State<SplitPathEditor>
 
                   setState(() {
                     _draggedPoint!.dragUpdate(targetX, targetY);
+                    if (_isDraggingStartPose()) {
+                      final picker = widget.path as GoalPicker;
+                      picker.startPose = Pose2d(
+                        _draggedPoint!.anchor,
+                        _draggedPoint!.holonomicAngle,
+                      );
+                      widget.path.idealStartingState.rotation =
+                          _draggedPoint!.holonomicAngle;
+                    }
                     widget.path.generatePathPoints();
                   });
                 } else if (_draggedRotationIdx != null) {
@@ -376,8 +399,18 @@ class _SplitPathEditorState extends State<SplitPathEditor>
 
                   setState(() {
                     if (_draggedRotationIdx == -2) {
-                      widget.path.idealStartingState.rotation =
+                      final newRot =
                           Rotation2d.fromComponents(x - pos.x, y - pos.y);
+                      widget.path.idealStartingState.rotation = newRot;
+                      if (widget.path.waypoints.isNotEmpty) {
+                        widget.path.waypoints.first.holonomicAngle = newRot;
+                      }
+                      if (_isDraggingStartRotation(_draggedRotationIdx)) {
+                        final picker = widget.path as GoalPicker;
+                        picker.startPose =
+                            Pose2d(picker.startPose.translation, newRot);
+                      }
+                      widget.path.generatePathPoints();
                     } else if (_draggedRotationIdx == -1) {
                       widget.path.goalEndState.rotation =
                           Rotation2d.fromComponents(x - pos.x, y - pos.y);
@@ -386,10 +419,10 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                 }
               },
               onPanEnd: (details) {
-                if (_draggedPoint != null) {
+                if (_draggedPoint != null && _draggedWaypointIdx != null) {
                   final wasHeadingDragging = _draggedPoint!.isHeadingDragging;
                   _draggedPoint!.stopDragging();
-                  int index = waypoints.indexOf(_draggedPoint!);
+                  final int index = _draggedWaypointIdx!;
                   final oldHeadingChange = _WaypointHeadingChange(
                     _dragOldValue!.clone(),
                     _cloneHeadingStrats(),
@@ -401,11 +434,32 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                     _draggedPoint!.clone(),
                     _cloneHeadingStrats(),
                   );
+
+                  // For GoalPicker, also update startPose (position + rotation) when dragging the first waypoint
+                  final isStartPoseDrag = _isDraggingStartPose();
+                  final oldStartPose = isStartPoseDrag
+                      ? Pose2d(
+                          _dragOldValue!.anchor,
+                          _dragOldValue!.holonomicAngle,
+                        )
+                      : null;
+                  final newStartPose = isStartPoseDrag
+                      ? Pose2d(
+                          _draggedPoint!.anchor,
+                          _draggedPoint!.holonomicAngle,
+                        )
+                      : null;
+
                   widget.undoStack.add(Change(
                     oldHeadingChange,
                     () {
                       setState(() {
                         _restoreHeadingChange(newHeadingChange, index);
+                        if (isStartPoseDrag && newStartPose != null) {
+                          (widget.path as GoalPicker).startPose = newStartPose;
+                          widget.path.idealStartingState.rotation =
+                              newStartPose.rotation;
+                        }
                         widget.path.generateAndSavePath();
                         _simulatePath();
                         widget.onPathChanged?.call();
@@ -417,6 +471,11 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                     (oldValue) {
                       setState(() {
                         _restoreHeadingChange(oldValue, index);
+                        if (isStartPoseDrag && oldStartPose != null) {
+                          (widget.path as GoalPicker).startPose = oldStartPose;
+                          widget.path.idealStartingState.rotation =
+                              oldStartPose.rotation;
+                        }
                         widget.path.generateAndSavePath();
                         _simulatePath();
                         widget.onPathChanged?.call();
@@ -427,14 +486,29 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                     },
                   ));
                   _draggedPoint = null;
+                  _draggedWaypointIdx = null;
                 } else if (_draggedRotationIdx != null) {
                   if (_draggedRotationIdx == -2) {
                     final endRotation = widget.path.idealStartingState.rotation;
+                    final isGoalPicker =
+                        _isDraggingStartRotation(_draggedRotationIdx);
+
                     widget.undoStack.add(Change(
                       _dragRotationOldValue,
                       () {
                         setState(() {
                           widget.path.idealStartingState.rotation = endRotation;
+                          if (widget.path.waypoints.isNotEmpty) {
+                            widget.path.waypoints.first.holonomicAngle =
+                                endRotation;
+                            _applyWaypointHeadingStrategy(
+                                widget.path.waypoints.first, 1);
+                          }
+                          if (isGoalPicker) {
+                            final picker = widget.path as GoalPicker;
+                            picker.startPose = Pose2d(
+                                picker.startPose.translation, endRotation);
+                          }
                           widget.path.generateAndSavePath();
                           _simulatePath();
                           widget.onPathChanged?.call();
@@ -443,6 +517,17 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                       (oldValue) {
                         setState(() {
                           widget.path.idealStartingState.rotation = oldValue!;
+                          if (widget.path.waypoints.isNotEmpty) {
+                            widget.path.waypoints.first.holonomicAngle =
+                                oldValue;
+                            _applyWaypointHeadingStrategy(
+                                widget.path.waypoints.first, 1);
+                          }
+                          if (isGoalPicker) {
+                            final picker = widget.path as GoalPicker;
+                            picker.startPose =
+                                Pose2d(picker.startPose.translation, oldValue);
+                          }
                           widget.path.generateAndSavePath();
                           _simulatePath();
                           widget.onPathChanged?.call();
@@ -511,15 +596,22 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                       child: Card(
                         color: colorScheme.surface.withOpacity(0.9),
                         child: IconButton(
-                          tooltip: (widget.prefs.getBool(PrefsKeys.hidePointsAndTolerances) ?? Defaults.hidePointsAndTolerances)
+                          tooltip: (widget.prefs.getBool(
+                                      PrefsKeys.hidePointsAndTolerances) ??
+                                  Defaults.hidePointsAndTolerances)
                               ? 'Show points/tolerance circles'
                               : 'Hide points/tolerance circles',
-                          icon: Icon(widget.prefs.getBool(PrefsKeys.hidePointsAndTolerances) ?? Defaults.hidePointsAndTolerances
+                          icon: Icon(widget.prefs.getBool(
+                                      PrefsKeys.hidePointsAndTolerances) ??
+                                  Defaults.hidePointsAndTolerances
                               ? Icons.visibility_off
                               : Icons.visibility),
                           onPressed: () {
-                            bool current = widget.prefs.getBool(PrefsKeys.hidePointsAndTolerances) ?? Defaults.hidePointsAndTolerances;
-                            widget.prefs.setBool(PrefsKeys.hidePointsAndTolerances, !current);
+                            bool current = widget.prefs.getBool(
+                                    PrefsKeys.hidePointsAndTolerances) ??
+                                Defaults.hidePointsAndTolerances;
+                            widget.prefs.setBool(
+                                PrefsKeys.hidePointsAndTolerances, !current);
                             setState(() {});
                           },
                         ),
@@ -664,7 +756,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                                       zone.maxWaypointRelativePos, waypointIdx);
                             }
 
-              // Adjust constraint zones and event markers
+                            // Adjust constraint zones and event markers
 
                             for (EventMarker m in widget.path.eventMarkers) {
                               m.waypointRelativePos =
@@ -672,7 +764,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                                       m.waypointRelativePos, waypointIdx);
                             }
 
-              // rotationTargets removed
+                            // rotationTargets removed
 
                             widget.path.generateAndSavePath();
                             _simulatePath();
@@ -693,7 +785,7 @@ class _SplitPathEditorState extends State<SplitPathEditor>
                             widget.path.eventMarkers =
                                 PathPlannerPath.cloneEventMarkers(
                                     oldValue[2] as List<EventMarker>);
-              // rotationTargets and pointTowardsZones restored removed
+                            // rotationTargets and pointTowardsZones restored removed
                             widget.path.generateAndSavePath();
                             _simulatePath();
                           });
