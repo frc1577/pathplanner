@@ -37,7 +37,6 @@ class GoalsTree extends StatefulWidget {
 class _GoalsTreeState extends State<GoalsTree> {
   final Map<Goal, int> _selectedTabs = {};
   final Map<Goal, TextEditingController> _nameControllers = {};
-  final Map<Goal, TextEditingController> _backupGoalControllers = {};
 
   TextEditingController _controllerForGoal(Goal goal) {
     final existing = _nameControllers[goal];
@@ -54,24 +53,6 @@ class _GoalsTreeState extends State<GoalsTree> {
 
     final controller = TextEditingController(text: goal.name);
     _nameControllers[goal] = controller;
-    return controller;
-  }
-
-  TextEditingController _backupControllerForGoal(Goal goal) {
-    final existing = _backupGoalControllers[goal];
-    if (existing != null) {
-      if (existing.text != goal.backUpGoal) {
-        final selection = existing.selection;
-        existing.text = goal.backUpGoal;
-        if (selection.isValid && selection.end <= goal.backUpGoal.length) {
-          existing.selection = selection;
-        }
-      }
-      return existing;
-    }
-
-    final controller = TextEditingController(text: goal.backUpGoal);
-    _backupGoalControllers[goal] = controller;
     return controller;
   }
 
@@ -124,7 +105,6 @@ class _GoalsTreeState extends State<GoalsTree> {
     _changeGoals(() {
       final removed = widget.path.goals.removeAt(index);
       _nameControllers.remove(removed)?.dispose();
-      _backupGoalControllers.remove(removed)?.dispose();
       _selectedTabs.remove(removed);
     });
   }
@@ -177,12 +157,6 @@ class _GoalsTreeState extends State<GoalsTree> {
       controller.dispose();
     }
     _nameControllers.clear();
-
-    for (final controller in _backupGoalControllers.values) {
-      controller.dispose();
-    }
-    _backupGoalControllers.clear();
-
     super.dispose();
   }
 
@@ -197,6 +171,7 @@ class _GoalsTreeState extends State<GoalsTree> {
       onChanged: (value) {
         setState(() {
           goal.name = value;
+          GoalsStore.addGoal(value);
         });
         widget.onPathChanged?.call();
       },
@@ -351,16 +326,58 @@ class _GoalsTreeState extends State<GoalsTree> {
     );
   }
 
-  Widget _buildBackupGoalField(Goal goal) {
-    return TextField(
-      controller: _backupControllerForGoal(goal),
+  Widget _buildBackupGoalDropdown(Goal currentGoal) {
+    final List<DropdownMenuItem<String>> items = [];
+    final seenGoals = <String>{};
+    final currentGoalName = currentGoal.name.trim();
+
+    // Combine global goals from all paths + any unsaved goals in the current path
+    final allAvailableGoalNames = <String>[
+      ...GoalsStore.goals,
+      for (final g in widget.path.goals)
+        if (!identical(g, currentGoal)) g.name,
+    ];
+
+    for (final rawName in allAvailableGoalNames) {
+      final goalName = rawName.trim();
+      if (goalName.isEmpty ||
+          goalName == currentGoalName ||
+          seenGoals.contains(goalName)) {
+        continue;
+      }
+      seenGoals.add(goalName);
+      items.add(DropdownMenuItem<String>(
+        value: goalName,
+        child: Text(goalName),
+      ));
+    }
+
+    final selectedValue =
+        currentGoal.backUpGoal.isEmpty ? null : currentGoal.backUpGoal;
+
+    if (selectedValue != null && !seenGoals.contains(selectedValue)) {
+      items.insert(
+        0,
+        DropdownMenuItem<String>(
+          value: selectedValue,
+          child: Text('Unknown Goal ($selectedValue)'),
+        ),
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      value: selectedValue,
       decoration: const InputDecoration(
         labelText: 'Backup Goal',
-        hintText: 'Enter backup goal name',
         border: OutlineInputBorder(),
       ),
+      isExpanded: true,
+      hint: const Text('No Backup Goal'),
+      items: items,
       onChanged: (value) {
-        goal.backUpGoal = value;
+        setState(() {
+          currentGoal.backUpGoal = value ?? '';
+        });
         widget.onPathChanged?.call();
       },
     );
@@ -443,7 +460,7 @@ class _GoalsTreeState extends State<GoalsTree> {
               onChanged: (val) => goal.failiureCondition = val,
             ),
             const SizedBox(height: 12),
-            _buildBackupGoalField(goal),
+            _buildBackupGoalDropdown(goal),
           ],
         ],
       ),

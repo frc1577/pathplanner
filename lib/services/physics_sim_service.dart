@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:pathplanner/controllers/profiled_pid_controller.dart';
+import 'package:pathplanner/path/goal_picker.dart';
 import 'package:pathplanner/path/heading_strat.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/waypoint.dart';
@@ -792,6 +793,54 @@ class HeadingStratsStore {
 
   static List<HeadingStrat> _defaultHeadingStrats() {
     return [];
+  }
+}
+
+class GoalsStore {
+  static List<String> _goals = [];
+
+  static List<String> get goals => List.unmodifiable(_goals);
+
+  static void setGoals(List<String> goals) {
+    final seen = <String>{};
+    _goals = [
+      for (final g in goals)
+        if (g.trim().isNotEmpty && seen.add(g.trim())) g.trim(),
+    ];
+  }
+
+  /// Syncs all goal names from every loaded GoalPicker / path file
+  static void syncFromPaths(Iterable<GoalPicker> paths) {
+    final seen = <String>{};
+    _goals = [
+      for (final path in paths)
+        for (final goal in path.goals)
+          if (goal.name.trim().isNotEmpty && seen.add(goal.name.trim()))
+            goal.name.trim(),
+    ];
+  }
+
+  static void addGoal(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isNotEmpty && !_goals.contains(trimmed)) {
+      _goals.add(trimmed);
+    }
+  }
+
+  /// Optional: if you also cache goal names in project settings JSON
+  static void loadFromJson(dynamic json) {
+    if (json is List) {
+      setGoals([
+        for (final entry in json)
+          if (entry != null) entry.toString(),
+      ]);
+      return;
+    }
+    _goals = [];
+  }
+
+  static List<String> toJson() {
+    return List.of(_goals);
   }
 }
 
