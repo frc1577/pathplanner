@@ -37,6 +37,7 @@ class GoalsTree extends StatefulWidget {
 class _GoalsTreeState extends State<GoalsTree> {
   final Map<Goal, int> _selectedTabs = {};
   final Map<Goal, TextEditingController> _nameControllers = {};
+  final Map<Goal, TextEditingController> _backupGoalControllers = {};
 
   TextEditingController _controllerForGoal(Goal goal) {
     final existing = _nameControllers[goal];
@@ -53,6 +54,24 @@ class _GoalsTreeState extends State<GoalsTree> {
 
     final controller = TextEditingController(text: goal.name);
     _nameControllers[goal] = controller;
+    return controller;
+  }
+
+  TextEditingController _backupControllerForGoal(Goal goal) {
+    final existing = _backupGoalControllers[goal];
+    if (existing != null) {
+      if (existing.text != goal.backUpGoal) {
+        final selection = existing.selection;
+        existing.text = goal.backUpGoal;
+        if (selection.isValid && selection.end <= goal.backUpGoal.length) {
+          existing.selection = selection;
+        }
+      }
+      return existing;
+    }
+
+    final controller = TextEditingController(text: goal.backUpGoal);
+    _backupGoalControllers[goal] = controller;
     return controller;
   }
 
@@ -105,6 +124,7 @@ class _GoalsTreeState extends State<GoalsTree> {
     _changeGoals(() {
       final removed = widget.path.goals.removeAt(index);
       _nameControllers.remove(removed)?.dispose();
+      _backupGoalControllers.remove(removed)?.dispose();
       _selectedTabs.remove(removed);
     });
   }
@@ -157,6 +177,12 @@ class _GoalsTreeState extends State<GoalsTree> {
       controller.dispose();
     }
     _nameControllers.clear();
+
+    for (final controller in _backupGoalControllers.values) {
+      controller.dispose();
+    }
+    _backupGoalControllers.clear();
+
     super.dispose();
   }
 
@@ -169,7 +195,9 @@ class _GoalsTreeState extends State<GoalsTree> {
         border: OutlineInputBorder(),
       ),
       onChanged: (value) {
-        goal.name = value;
+        setState(() {
+          goal.name = value;
+        });
         widget.onPathChanged?.call();
       },
     );
@@ -247,7 +275,11 @@ class _GoalsTreeState extends State<GoalsTree> {
     );
   }
 
-  Widget _buildTriggerRow(Goal goal) {
+  Widget _buildTriggerDropdownRow({
+    required String label,
+    required String currentValue,
+    required ValueChanged<String> onChanged,
+  }) {
     final List<DropdownMenuItem<String>> items = [];
     final seenTriggers = <String>{};
 
@@ -260,7 +292,7 @@ class _GoalsTreeState extends State<GoalsTree> {
       ));
     }
 
-    final selectedValue = goal.endCond.isEmpty ? null : goal.endCond;
+    final selectedValue = currentValue.isEmpty ? null : currentValue;
 
     if (selectedValue != null && !seenTriggers.contains(selectedValue)) {
       items.insert(
@@ -278,16 +310,16 @@ class _GoalsTreeState extends State<GoalsTree> {
         Expanded(
           child: DropdownButtonFormField<String>(
             value: selectedValue,
-            decoration: const InputDecoration(
-              labelText: 'End Condition',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: label,
+              border: const OutlineInputBorder(),
             ),
             isExpanded: true,
             hint: const Text('No Trigger'),
             items: items,
             onChanged: (value) {
               setState(() {
-                goal.endCond = value ?? '';
+                onChanged(value ?? '');
               });
               widget.onPathChanged?.call();
             },
@@ -316,6 +348,105 @@ class _GoalsTreeState extends State<GoalsTree> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildBackupGoalField(Goal goal) {
+    return TextField(
+      controller: _backupControllerForGoal(goal),
+      decoration: const InputDecoration(
+        labelText: 'Backup Goal',
+        hintText: 'Enter backup goal name',
+        border: OutlineInputBorder(),
+      ),
+      onChanged: (value) {
+        goal.backUpGoal = value;
+        widget.onPathChanged?.call();
+      },
+    );
+  }
+
+  Widget _buildStateOptionChip({
+    required String label,
+    required bool selected,
+    required ValueChanged<bool> onSelected,
+  }) {
+    return FilterChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          color: selected ? Colors.white : null,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ),
+      selected: selected,
+      selectedColor: Colors.green.shade600,
+      checkmarkColor: Colors.white,
+      onSelected: (value) {
+        setState(() {
+          onSelected(value);
+        });
+        widget.onPathChanged?.call();
+      },
+    );
+  }
+
+  Widget _buildStatesTab(Goal goal) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildGoalNameField(goal),
+          const SizedBox(height: 12),
+          _buildCommandRow(goal),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildStateOptionChip(
+                label: 'Finish When Drive Finishes',
+                selected: goal.finishWhenDriveFinishes,
+                onSelected: (val) => goal.finishWhenDriveFinishes = val,
+              ),
+              _buildStateOptionChip(
+                label: 'With Success Condition',
+                selected: goal.withSuccessCondition,
+                onSelected: (val) => goal.withSuccessCondition = val,
+              ),
+              _buildStateOptionChip(
+                label: 'With Failiure Condition',
+                selected: goal.withFailiureCondition,
+                onSelected: (val) => goal.withFailiureCondition = val,
+              ),
+              _buildStateOptionChip(
+                label: 'CommandBased Goal',
+                selected: goal.commandBasedGoal,
+                onSelected: (val) => goal.commandBasedGoal = val,
+              ),
+            ],
+          ),
+          if (goal.withSuccessCondition) ...[
+            const SizedBox(height: 12),
+            _buildTriggerDropdownRow(
+              label: 'Success Condition',
+              currentValue: goal.successCondition,
+              onChanged: (val) => goal.successCondition = val,
+            ),
+          ],
+          if (goal.withFailiureCondition) ...[
+            const SizedBox(height: 12),
+            _buildTriggerDropdownRow(
+              label: 'Failiure Condition',
+              currentValue: goal.failiureCondition,
+              onChanged: (val) => goal.failiureCondition = val,
+            ),
+            const SizedBox(height: 12),
+            _buildBackupGoalField(goal),
+          ],
+        ],
+      ),
     );
   }
 
@@ -435,18 +566,7 @@ class _GoalsTreeState extends State<GoalsTree> {
             ],
           ),
         ] else ...[
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                _buildGoalNameField(goal),
-                const SizedBox(height: 12),
-                _buildCommandRow(goal),
-                const SizedBox(height: 12),
-                _buildTriggerRow(goal),
-              ],
-            ),
-          ),
+          _buildStatesTab(goal),
         ],
       ],
     );
