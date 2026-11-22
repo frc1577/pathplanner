@@ -16,7 +16,21 @@ class HeadingStratsPage extends StatefulWidget {
 }
 
 class _HeadingStratsPageState extends State<HeadingStratsPage> {
-  late List<Map<String, Object?>> _headingStrats;
+  late List<dynamic> _headingStrats;
+  String _innerType = HeadingStratKinds.simple;
+
+  static const List<String> _supportedKinds = [
+    HeadingStratKinds.simple,
+    HeadingStratKinds.faceTarget,
+    HeadingStratKinds.named,
+  ];
+
+  String _sanitizeType(String? rawType) {
+    if (rawType != null && _supportedKinds.contains(rawType)) {
+      return rawType;
+    }
+    return HeadingStratKinds.simple;
+  }
 
   @override
   void initState() {
@@ -24,13 +38,15 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
     _headingStrats = widget.headingStrats
         .map((strat) => <String, Object?>{
               'name': strat.name,
-              'type': strat.type,
+              'type': _sanitizeType(strat.type),
               'degrees': strat.degrees,
               'targetX': strat.targetX,
               'targetY': strat.targetY,
               'offsetDeg': strat.offsetDeg,
-              'falseDegrees': strat.falseDegrees,
-              'condition': strat.condition,
+              'innerType': _sanitizeType(strat.innerType) ==
+                      HeadingStratKinds.faceTarget
+                  ? HeadingStratKinds.faceTarget
+                  : HeadingStratKinds.simple,
             })
         .toList(growable: true);
   }
@@ -57,18 +73,23 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
     return null;
   }
 
-  void _addHeadingStrat() {
+  void _addHeadingStrat({String type = HeadingStratKinds.simple}) {
+    final sanitizedType = _sanitizeType(type);
+    final isNamed = sanitizedType == HeadingStratKinds.named;
+    if (isNamed) {
+      _innerType = HeadingStratKinds.simple;
+    }
+
     setState(() {
       _headingStrats.add(<String, Object?>{
         'id': DateTime.now().millisecondsSinceEpoch.toString(),
         'name': _nextUniqueName(),
-        'type': HeadingStratKinds.simple,
+        'type': sanitizedType,
         'degrees': 0.0,
         'targetX': 0.0,
         'targetY': 0.0,
         'offsetDeg': 0.0,
-        'falseDegrees': 0.0,
-        'condition': '',
+        'innerType': isNamed ? _innerType : HeadingStratKinds.simple,
       });
       _notifyChanged();
     });
@@ -86,13 +107,13 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
       for (final entry in _headingStrats)
         HeadingStrat(
           name: entry['name'].toString(),
-          type: entry['type'].toString(),
+          type: _sanitizeType(entry['type']?.toString()),
           degrees: (entry['degrees'] as num).toDouble(),
           targetX: (entry['targetX'] as num).toDouble(),
           targetY: (entry['targetY'] as num).toDouble(),
           offsetDeg: (entry['offsetDeg'] as num).toDouble(),
-          falseDegrees: (entry['falseDegrees'] as num).toDouble(),
-          condition: entry['condition'].toString(),
+          innerType:
+              entry['innerType']?.toString() ?? HeadingStratKinds.simple,
         ),
     ]);
   }
@@ -104,7 +125,7 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
         title: const Text('Heading Strats'),
         actions: [
           TextButton(
-            onPressed: _addHeadingStrat,
+            onPressed: () => _addHeadingStrat(),
             child: const Text('Add', style: TextStyle(color: Colors.white)),
           ),
           TextButton(
@@ -123,13 +144,13 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
                 for (final entry in _headingStrats)
                   HeadingStrat(
                     name: entry['name'].toString().trim(),
-                    type: entry['type'].toString(),
+                    type: _sanitizeType(entry['type']?.toString()),
                     degrees: (entry['degrees'] as num).toDouble(),
                     targetX: (entry['targetX'] as num).toDouble(),
                     targetY: (entry['targetY'] as num).toDouble(),
                     offsetDeg: (entry['offsetDeg'] as num).toDouble(),
-                    falseDegrees: (entry['falseDegrees'] as num).toDouble(),
-                    condition: entry['condition'].toString(),
+                    innerType: entry['innerType']?.toString() ??
+                        HeadingStratKinds.simple,
                   ),
               ];
               Navigator.of(context).pop(out);
@@ -148,14 +169,14 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
         itemCount: _headingStrats.length,
         itemBuilder: (context, index) {
           final strat = _headingStrats[index];
-          final type = strat['type'].toString();
-          final bool needsCondition =
-              type == HeadingStratKinds.simpleOnCondition ||
-                  type == HeadingStratKinds.faceTargetOnCondition;
+          final type = _sanitizeType(strat['type']?.toString());
+          final innerType =
+              strat['innerType']?.toString() ?? HeadingStratKinds.simple;
+          final bool isNamed = type == HeadingStratKinds.named;
           final bool needsSimpleHeading = type == HeadingStratKinds.simple ||
-              type == HeadingStratKinds.simpleOnCondition;
+              (isNamed && innerType == HeadingStratKinds.simple);
           final bool needsTarget = type == HeadingStratKinds.faceTarget ||
-              type == HeadingStratKinds.faceTargetOnCondition;
+              (isNamed && innerType == HeadingStratKinds.faceTarget);
 
           return Card(
             margin: const EdgeInsets.all(8.0),
@@ -200,15 +221,49 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
                       if (value == null) return;
                       setState(() {
                         strat['type'] = value;
+                        if (value == HeadingStratKinds.named) {
+                          strat['innerType'] =
+                              strat['innerType'] ?? HeadingStratKinds.simple;
+                        }
                         _notifyChanged();
                       });
                     },
                   ),
+                  if (isNamed) ...[
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: innerType,
+                      decoration: const InputDecoration(labelText: 'Inner Type'),
+                      items: [
+                        DropdownMenuItem<String>(
+                          value: HeadingStratKinds.simple,
+                          child: Text(
+                            HeadingStratKinds.labelFor(HeadingStratKinds.simple),
+                          ),
+                        ),
+                        DropdownMenuItem<String>(
+                          value: HeadingStratKinds.faceTarget,
+                          child: Text(
+                            HeadingStratKinds.labelFor(
+                                HeadingStratKinds.faceTarget),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() {
+                          strat['innerType'] = value;
+                          _innerType = value;
+                          _notifyChanged();
+                        });
+                      },
+                    ),
+                  ],
                   if (needsSimpleHeading) ...[
                     const SizedBox(height: 8),
                     _NumberFormField(
                       initialValue: (strat['degrees'] as num).toDouble(),
-                      label: 'Heading when true (Deg)',
+                      label: 'Heading (Deg)',
                       onChanged: (value) {
                         setState(() {
                           strat['degrees'] = value;
@@ -255,34 +310,6 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
                       onChanged: (value) {
                         setState(() {
                           strat['offsetDeg'] = value;
-                          _notifyChanged();
-                        });
-                      },
-                    ),
-                  ],
-                  if (needsCondition) ...[
-                    const SizedBox(height: 8),
-                    _NumberFormField(
-                      initialValue:
-                          (strat['falseDegrees'] as num).toDouble(),
-                      label: 'Heading when False (Deg)',
-                      onChanged: (value) {
-                        setState(() {
-                          strat['falseDegrees'] = value;
-                          _notifyChanged();
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      initialValue: strat['condition']?.toString(),
-                      decoration: const InputDecoration(
-                        labelText: 'Condition',
-                        hintText: 'robotPose > 5.5 && robotPose < 7',
-                      ),
-                      onChanged: (value) {
-                        setState(() {
-                          strat['condition'] = value;
                           _notifyChanged();
                         });
                       },

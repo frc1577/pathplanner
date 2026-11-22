@@ -41,8 +41,6 @@ void main() {
         targetX: 0,
         targetY: 0,
         offsetDeg: 0,
-        falseDegrees: 0,
-        condition: '',
       ),
     ]);
   });

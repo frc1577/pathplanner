@@ -800,8 +800,6 @@ class HeadingStratsStore {
         targetX: 0.0,
         targetY: 0.0,
         offsetDeg: 0.0,
-        falseDegrees: 0.0,
-        condition: '',
       ),
     ];
     _onChangedCallback?.call();
