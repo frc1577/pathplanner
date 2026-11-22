@@ -61,14 +61,14 @@ class SaveService {
 
     // Write controllers
     final settings = ControllerSettingsStore.settings;
-    final idToVar = <String, String>{};
+    final nameToVar = <String, String>{};
 
     for (final s in settings) {
       final varName = uniqueVarName(
-        s.name.isEmpty ? 'setting${s.id}' : s.name,
+        s.name.isEmpty ? 'setting${s.name}' : s.name,
       );
 
-      idToVar[s.id] = varName;
+      nameToVar[s.name] = varName;
 
       // Add @Sync annotation with the exported setting name
       sb.writeln('@Sync("$varName")');
@@ -156,13 +156,13 @@ class SaveService {
 
       String controllerRef = 'null';
 
-      if (w.controllerSettingId != null &&
-          idToVar.containsKey(w.controllerSettingId)) {
-        controllerRef = idToVar[w.controllerSettingId]!;
+      if (w.controllerSettingName != null &&
+          nameToVar.containsKey(w.controllerSettingName)) {
+        controllerRef = nameToVar[w.controllerSettingName]!;
       } else {
         // fallback to first controller if available
         if (settings.isNotEmpty) {
-          controllerRef = idToVar[settings.first.id]!;
+          controllerRef = nameToVar[settings.first.name]!;
         }
       }
 
@@ -225,7 +225,7 @@ class SaveService {
             holonomicAngle: Rotation2d.fromDegrees(angDeg),
             tolerance: tol,
             toleranceDeg: tolDeg,
-            controllerSettingId: null,
+            controllerSettingName: null,
           );
 
           waypoints.add(wp);
@@ -264,7 +264,6 @@ class SaveService {
     );
 
     final defaults = ControllerSetting(
-      id: '0',
       name: 'Default',
       kp: 1.0,
       ki: 0.0,
@@ -376,7 +375,6 @@ class SaveService {
       final id = '${DateTime.now().microsecondsSinceEpoch}_$idx';
 
       results.add(ControllerSetting(
-        id: id,
         name: varName,
         kp: kp,
         ki: ki,

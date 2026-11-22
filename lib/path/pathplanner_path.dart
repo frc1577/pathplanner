@@ -12,6 +12,7 @@ import 'package:pathplanner/pages/project/project_page.dart';
 import 'package:pathplanner/path/constraints_zone.dart';
 import 'package:pathplanner/path/event_marker.dart';
 import 'package:pathplanner/path/goal_end_state.dart';
+import 'package:pathplanner/path/goal_picker.dart';
 import 'package:pathplanner/path/path_constraints.dart';
 import 'package:pathplanner/path/path_point.dart';
 import 'package:pathplanner/path/ideal_starting_state.dart';
@@ -164,8 +165,8 @@ class PathPlannerPath {
           folder: json['folder'],
           idealStartingState:
               IdealStartingState.fromJson(json['idealStartingState'] ?? {}),
-      useDefaultConstraints: json['useDefaultConstraints'] ?? false,
-      controllerSettings: List.of(ControllerSettingsStore.settings),
+          useDefaultConstraints: json['useDefaultConstraints'] ?? false,
+          controllerSettings: List.of(ControllerSettingsStore.settings),
         );
 
   void generateAndSavePath() {
@@ -197,8 +198,9 @@ class PathPlannerPath {
           Map<String, dynamic> json = jsonDecode(jsonStr);
           String pathName = basenameWithoutExtension(e.path);
 
-          PathPlannerPath path =
-              PathPlannerPath.fromJson(json, pathName, pathsDir, fs);
+            PathPlannerPath path = json['goals'] is List
+              ? GoalPicker.fromJson(json, pathName, pathsDir, fs)
+              : PathPlannerPath.fromJson(json, pathName, pathsDir, fs);
           path.lastModified = (await file.lastModified()).toUtc();
 
           if (json['version'] != fileVersion) {
@@ -270,10 +272,16 @@ class PathPlannerPath {
 
   void addWaypoint(Translation2d anchorPos) {
     Waypoint prev = waypoints[waypoints.length - 1];
+    final heading = prev.holonomicAngle;
     waypoints.add(
       Waypoint(
         anchor: anchorPos,
-        holonomicAngle: prev.holonomicAngle,
+        holonomicAngle: heading,
+        headingStratName: HeadingStratsStore.createSimpleHeadingStrat(
+          degrees: heading.degrees.toDouble(),
+          pathName: name,
+          waypointNumber: waypoints.length + 1,
+        ),
       ),
     );
   }
@@ -292,6 +300,11 @@ class PathPlannerPath {
       holonomicAngle: before.holonomicAngle,
       tolerance: before.tolerance,
       toleranceDeg: before.toleranceDeg,
+      headingStratName: HeadingStratsStore.createSimpleHeadingStrat(
+        degrees: before.holonomicAngle.degrees.toDouble(),
+        pathName: name,
+        waypointNumber: waypointIdx + 2,
+      ),
     );
 
     waypoints.insert(waypointIdx + 1, toAdd);

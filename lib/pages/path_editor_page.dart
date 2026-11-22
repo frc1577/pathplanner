@@ -22,6 +22,7 @@ class PathEditorPage extends StatefulWidget {
   final bool simulatePath;
   final VoidCallback? onPathChanged;
   final VoidCallback? onControllerSettingsChanged;
+  final VoidCallback? onHeadingStratsChanged;
 
   const PathEditorPage({
     super.key,
@@ -36,6 +37,7 @@ class PathEditorPage extends StatefulWidget {
     this.simulatePath = false,
     this.onPathChanged,
     this.onControllerSettingsChanged,
+    this.onHeadingStratsChanged,
   });
 
   @override
@@ -57,6 +59,7 @@ class _PathEditorPageState extends State<PathEditorPage> {
       simulate: widget.simulatePath,
       onPathChanged: widget.onPathChanged,
       onControllerSettingsChanged: widget.onControllerSettingsChanged,
+      onHeadingStratsChanged: widget.onHeadingStratsChanged,
     );
 
     return Scaffold(

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:pathplanner/path/constraints_zone.dart';
 import 'package:pathplanner/path/event_marker.dart';
+import 'package:pathplanner/path/heading_strat.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/waypoint.dart';
+import 'package:pathplanner/pages/heading_strats_page.dart';
 import 'package:pathplanner/pages/project/project_page.dart';
 import 'package:pathplanner/services/physics_sim_service.dart';
 import 'package:pathplanner/services/save_service.dart';
@@ -21,6 +23,7 @@ class WaypointsTree extends StatefulWidget {
   final ValueChanged<int>? onWaypointDeleted;
   final VoidCallback? onPathChanged;
   final VoidCallback? onControllerSettingsChanged;
+  final VoidCallback? onHeadingStratsChanged;
   final WaypointsTreeController? controller;
   final int? initialSelectedWaypoint;
   final ChangeStack undoStack;
@@ -32,7 +35,8 @@ class WaypointsTree extends StatefulWidget {
     this.onWaypointHovered,
     this.onWaypointSelected,
     this.onPathChanged,
-  this.onControllerSettingsChanged,
+    this.onControllerSettingsChanged,
+    this.onHeadingStratsChanged,
     this.controller,
     this.initialSelectedWaypoint,
     this.onWaypointDeleted,
@@ -67,6 +71,16 @@ class _WaypointsTreeState extends State<WaypointsTree> {
   }
 
   @override
+  void dispose() {
+    // Detach so callers that outlive this widget (e.g. SplitPathEditor's tap
+    // handler) don't hold a stale reference to this state.
+    if (identical(_treeController._state, this)) {
+      _treeController._state = null;
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return TreeCardNode(
       title: const Text('Waypoints'),
@@ -96,8 +110,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                 child: IconButton(
                   icon: const Icon(Icons.file_upload_outlined),
                   onPressed: () async {
-                    final TextEditingController ctrl =
-                        TextEditingController();
+                    final TextEditingController ctrl = TextEditingController();
                     final result = await showDialog<String?>(
                         context: context,
                         builder: (context) {
@@ -112,7 +125,8 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                                 controller: ctrl,
                                 maxLines: 16,
                                 decoration: const InputDecoration(
-                                    labelText: 'Paste Java add(...) lines here'),
+                                    labelText:
+                                        'Paste Java add(...) lines here'),
                               ),
                             ),
                             actions: [
@@ -120,7 +134,8 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                                   onPressed: () => Navigator.of(context).pop(),
                                   child: const Text('Cancel')),
                               TextButton(
-                                  onPressed: () => Navigator.of(context).pop(ctrl.text),
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(ctrl.text),
                                   child: const Text('Import')),
                             ],
                           );
@@ -291,7 +306,9 @@ class _WaypointsTreeState extends State<WaypointsTree> {
               message: 'Delete Waypoint',
               waitDuration: const Duration(seconds: 1),
               child: IconButton(
-                    onPressed: waypoint.isLocked ? null : () => widget.onWaypointDeleted?.call(waypointIdx),
+                onPressed: waypoint.isLocked
+                    ? null
+                    : () => widget.onWaypointDeleted?.call(waypointIdx),
                 icon: const Icon(Icons.delete_forever),
                 color: colorScheme.error,
               ),
@@ -340,22 +357,78 @@ class _WaypointsTreeState extends State<WaypointsTree> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: NumberTextField(
-                  initialValue: waypoint.holonomicAngle.degrees,
-                  label: 'Swerve Heading (Deg)',
-                  arrowKeyIncrement: 1.0,
-                  enabled: !waypoint.isLocked,
-                  onSubmitted: (value) {
-                    if (value != null) {
-                      Waypoint wRef = waypoints[waypointIdx];
-                      widget.undoStack.add(_waypointChange(
-                        wRef,
-                        () => wRef.setHeading(Rotation2d.fromDegrees(value)),
-                        (oldVal) => wRef.setHeading(oldVal.holonomicAngle),
-                      ));
-                    }
-                  },
-                ),
+                child: Builder(builder: (context) {
+                  final List<DropdownMenuItem<String>> items = [];
+                  final seenIds = <String>{};
+
+                  for (final headingStrat in HeadingStratsStore.settings) {
+                    if (seenIds.contains(headingStrat.name)) continue;
+                    seenIds.add(headingStrat.name);
+                    items.add(DropdownMenuItem<String>(
+                      value: headingStrat.name,
+                      child: Text(headingStrat.name),
+                    ));
+                  }
+
+                  String? selectedValue = waypoint.headingStratName;
+                  if (selectedValue != null &&
+                      !seenIds.contains(selectedValue)) {
+                    items.insert(
+                      0,
+                      DropdownMenuItem<String>(
+                        value: selectedValue,
+                        child: Text('Unknown Heading Strat ($selectedValue)'),
+                      ),
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButton<String>(
+                          value: selectedValue,
+                          isExpanded: true,
+                          hint: const Text('Select Heading Strat'),
+                          items: items,
+                          onChanged: waypoint.isLocked
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    waypoint.headingStratName = value;
+                                  });
+                                  widget.onPathChanged?.call();
+                                },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Tooltip(
+                        message: 'Manage Heading Strats',
+                        child: IconButton(
+                          icon: const Icon(Icons.settings_outlined),
+                          onPressed: () async {
+                            final updated = await Navigator.of(context)
+                                .push<List<HeadingStrat>>(
+                              MaterialPageRoute(
+                                builder: (context) => HeadingStratsPage(
+                                  headingStrats: HeadingStratsStore.settings,
+                                  onChanged: (newHeadingStrats) {},
+                                ),
+                              ),
+                            );
+
+                            if (updated != null) {
+                              setState(() {
+                                HeadingStratsStore.setSettings(updated);
+                              });
+                              widget.onHeadingStratsChanged?.call();
+                              widget.onPathChanged?.call();
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                }),
               ),
             ],
           ),
@@ -426,24 +499,24 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                       // controllerSettingId is represented so DropdownButton's
                       // value is always one of the items (or null).
                       final List<DropdownMenuItem<String>> items = [];
-                      final seenIds = <String>{};
+                      final seenNames = <String>{};
 
-                      for (final setting
-                          in ControllerSettingsStore.settings) {
-                        if (seenIds.contains(setting.id)) continue;
-                        seenIds.add(setting.id);
+                      for (final setting in ControllerSettingsStore.settings) {
+                        if (seenNames.contains(setting.name)) continue;
+                        seenNames.add(setting.name);
                         items.add(DropdownMenuItem<String>(
-                          value: setting.id,
+                          value: setting.name,
                           child: Text(setting.name),
                         ));
                       }
 
-                      String? selectedValue = waypoint.controllerSettingId;
+                      String? selectedValue = waypoint.controllerSettingName;
 
                       // If the selected value is non-null but not present in the
                       // current items, add a placeholder so DropdownButton can
                       // render a matching item instead of asserting.
-                      if (selectedValue != null && !seenIds.contains(selectedValue)) {
+                      if (selectedValue != null &&
+                          !seenNames.contains(selectedValue)) {
                         items.insert(
                           0,
                           DropdownMenuItem<String>(
@@ -462,7 +535,7 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                             ? null
                             : (value) {
                                 setState(() {
-                                  waypoint.controllerSettingId = value;
+                                  waypoint.controllerSettingName = value;
                                 });
                                 widget.onPathChanged?.call();
                               },
@@ -513,40 +586,50 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                 Tooltip(
                   message: 'Create New Waypoint After',
                   child: IconButton(
-                        onPressed: waypoint.isLocked
-                            ? null
-                            : () {
-                      widget.undoStack.add(Change(
-                        [
-                          PathPlannerPath.cloneWaypoints(widget.path.waypoints),
-                          PathPlannerPath.cloneConstraintZones(
-                              widget.path.constraintZones),
-                          PathPlannerPath.cloneEventMarkers(
-                              widget.path.eventMarkers),
-                        ],
-                        () {
-                          widget.path.insertWaypointAfter(waypointIdx);
-                          widget.onPathChanged?.call();
-                        },
-                        (oldValue) {
-                          _selectedWaypoint = null;
-                          widget.onWaypointHovered?.call(null);
-                          widget.onWaypointSelected?.call(null);
+                    onPressed: waypoint.isLocked
+                        ? null
+                        : () {
+                            widget.undoStack.add(Change(
+                              [
+                                PathPlannerPath.cloneWaypoints(
+                                    widget.path.waypoints),
+                                PathPlannerPath.cloneConstraintZones(
+                                    widget.path.constraintZones),
+                                PathPlannerPath.cloneEventMarkers(
+                                    widget.path.eventMarkers),
+                                [
+                                  for (final strat in HeadingStratsStore.settings)
+                                    strat.clone(),
+                                ],
+                              ],
+                              () {
+                                widget.path.insertWaypointAfter(waypointIdx);
+                                widget.onPathChanged?.call();
+                              },
+                              (oldValue) {
+                                _selectedWaypoint = null;
+                                widget.onWaypointHovered?.call(null);
+                                widget.onWaypointSelected?.call(null);
 
-                          widget.path.waypoints =
-                              PathPlannerPath.cloneWaypoints(
-                                  oldValue[0] as List<Waypoint>);
-              widget.path.constraintZones =
-                PathPlannerPath.cloneConstraintZones(
-                  oldValue[1] as List<ConstraintsZone>);
-              widget.path.eventMarkers =
-                PathPlannerPath.cloneEventMarkers(
-                  oldValue[2] as List<EventMarker>);
+                                widget.path.waypoints =
+                                    PathPlannerPath.cloneWaypoints(
+                                        oldValue[0] as List<Waypoint>);
+                                widget.path.constraintZones =
+                                    PathPlannerPath.cloneConstraintZones(
+                                        oldValue[1] as List<ConstraintsZone>);
+                                widget.path.eventMarkers =
+                                    PathPlannerPath.cloneEventMarkers(
+                                        oldValue[2] as List<EventMarker>);
+                                HeadingStratsStore.setSettings([
+                                  for (final strat
+                                      in oldValue[3] as List<HeadingStrat>)
+                                    strat.clone(),
+                                ]);
 
-                          widget.onPathChanged?.call();
-                        },
-                      ));
-                    },
+                                widget.onPathChanged?.call();
+                              },
+                            ));
+                          },
                     icon: const Icon(Icons.add, size: 20),
                   ),
                 ),
@@ -554,7 +637,9 @@ class _WaypointsTreeState extends State<WaypointsTree> {
                 Tooltip(
                   message: 'Link Waypoint',
                   child: IconButton(
-                    onPressed: waypoint.isLocked ? null : () => _showLinkedDialog(waypointIdx),
+                    onPressed: waypoint.isLocked
+                        ? null
+                        : () => _showLinkedDialog(waypointIdx),
                     icon: const Icon(Icons.add_link_rounded, size: 20),
                   ),
                 ),
@@ -726,8 +811,12 @@ class WaypointsTreeController {
 
   _WaypointsTreeState? _state;
 
+  /// Whether an active [WaypointsTree] is attached to this controller.
+  bool get isAttached => _state != null;
+
+  /// Selects a waypoint in the attached tree. No-op if no tree is attached
+  /// (e.g. goal picker paths render no waypoints tree).
   void setSelectedWaypoint(int? waypointIdx) {
-    assert(_state != null);
-    _state!._setSelectedWaypoint(waypointIdx);
+    _state?._setSelectedWaypoint(waypointIdx);
   }
 }

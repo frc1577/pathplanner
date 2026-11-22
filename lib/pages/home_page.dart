@@ -74,6 +74,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
+    _setupStores();
+
     _animController = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 250));
     _scaleAnimation =
@@ -439,8 +441,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   hotReload: _hotReload,
                   onFoldersChanged: () =>
                       _saveProjectSettingsToFile(_projectDir!),
-          onProjectSettingsChanged: () =>
-            _saveProjectSettingsToFile(_projectDir!),
+                  onProjectSettingsChanged: () =>
+                      _saveProjectSettingsToFile(_projectDir!),
                   simulatePath: true,
                   watchChorDir: true,
                 ),
@@ -483,6 +485,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     } else {
       return Container();
     }
+  }
+
+  void _setupStores() {
+    CommandsStore.setOnChangedCallback(_onProjectSettingsChanged);
+    TriggersStore.setOnChangedCallback(_onProjectSettingsChanged);
+    HeadingStratsStore.setOnChangedCallback(_onProjectSettingsChanged);
   }
 
   void _onProjectSettingsChanged() {
@@ -580,7 +588,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ?.map((e) => e as String)
                 .toList() ??
             Defaults.robotFeatures);
-  ControllerSettingsStore.loadFromJson(json[PrefsKeys.controllerSettings]);
+    ControllerSettingsStore.loadFromJson(json[PrefsKeys.controllerSettings]);
+    HeadingStratsStore.loadFromJson(json[PrefsKeys.headingStrats]);
+    CommandsStore.loadFromJson(json[PrefsKeys.commands]);
+    TriggersStore.loadFromJson(json[PrefsKeys.triggers]);
   }
 
   void _setPrefDoubleFromJSON(
@@ -673,7 +684,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       PrefsKeys.robotFeatures:
           widget.prefs.getStringList(PrefsKeys.robotFeatures) ??
               Defaults.robotFeatures,
-    PrefsKeys.controllerSettings: ControllerSettingsStore.toJson(),
+      PrefsKeys.controllerSettings: ControllerSettingsStore.toJson(),
+      PrefsKeys.headingStrats: HeadingStratsStore.toJson(),
+      PrefsKeys.commands: CommandsStore.toJson(),
+      PrefsKeys.triggers: TriggersStore.toJson(),
     };
 
     settingsFile.writeAsString(encoder.convert(settings)).then((_) {
@@ -746,6 +760,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
 
     await _loadProjectSettingsFromFile(_projectDir!);
+    await _loadAllGoalsFromProject();
   }
 
   Future<void> _loadFieldImages() async {
@@ -759,5 +774,34 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     for (FileSystemEntity e in fileEntities) {
       _fieldImages.add(FieldImage.custom(fs.file(e.path)));
     }
+  }
+
+  Future<void> _loadAllGoalsFromProject() async {
+    final goalNames = <String>{};
+
+    if (await _pathplannerDir.exists()) {
+      await for (final entity in _pathplannerDir.list(recursive: true)) {
+        if (entity is File && entity.path.endsWith('.path')) {
+          try {
+            final content = await entity.readAsString();
+            final data = jsonDecode(content);
+            if (data is Map<String, dynamic> && data['goals'] is List) {
+              for (final goalJson in data['goals']) {
+                if (goalJson is Map<String, dynamic>) {
+                  final name = (goalJson['name'] ?? '').toString().trim();
+                  if (name.isNotEmpty) {
+                    goalNames.add(name);
+                  }
+                }
+              }
+            }
+          } catch (e, stack) {
+            Log.error('Failed to read goals from ${entity.path}', e, stack);
+          }
+        }
+      }
+    }
+
+    GoalsStore.setGoals(goalNames.toList());
   }
 }

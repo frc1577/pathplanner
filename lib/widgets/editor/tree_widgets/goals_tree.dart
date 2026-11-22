@@ -1,0 +1,812 @@
+import 'package:flutter/material.dart';
+import 'package:pathplanner/pages/command_page.dart';
+import 'package:pathplanner/pages/controller_settings_page.dart';
+import 'package:pathplanner/pages/heading_strats_page.dart';
+import 'package:pathplanner/pages/trigger_page.dart';
+import 'package:pathplanner/path/goal.dart';
+import 'package:pathplanner/path/goal_picker.dart';
+import 'package:pathplanner/path/heading_strat.dart';
+import 'package:pathplanner/path/waypoint.dart';
+import 'package:pathplanner/services/physics_sim_service.dart';
+import 'package:pathplanner/util/wpimath/geometry.dart';
+import 'package:pathplanner/widgets/editor/tree_widgets/item_count.dart';
+import 'package:pathplanner/widgets/editor/tree_widgets/tree_card_node.dart';
+import 'package:pathplanner/widgets/number_text_field.dart';
+import 'package:undo/undo.dart';
+
+class GoalsTree extends StatefulWidget {
+  final GoalPicker path;
+  final ChangeStack undoStack;
+  final VoidCallback? onPathChanged;
+  final VoidCallback? onControllerSettingsChanged;
+  final VoidCallback? onHeadingStratsChanged;
+
+  const GoalsTree({
+    super.key,
+    required this.path,
+    required this.undoStack,
+    this.onPathChanged,
+    this.onControllerSettingsChanged,
+    this.onHeadingStratsChanged,
+  });
+
+  @override
+  State<GoalsTree> createState() => _GoalsTreeState();
+}
+
+class _GoalsTreeState extends State<GoalsTree> {
+  final Map<Goal, int> _selectedTabs = {};
+  final Map<Goal, TextEditingController> _nameControllers = {};
+
+  TextEditingController _controllerForGoal(Goal goal) {
+    final existing = _nameControllers[goal];
+    if (existing != null) {
+      if (existing.text != goal.name) {
+        final selection = existing.selection;
+        existing.text = goal.name;
+        if (selection.isValid && selection.end <= goal.name.length) {
+          existing.selection = selection;
+        }
+      }
+      return existing;
+    }
+
+    final controller = TextEditingController(text: goal.name);
+    _nameControllers[goal] = controller;
+    return controller;
+  }
+
+  List<Goal> _cloneGoals() =>
+      [for (final goal in widget.path.goals) goal.clone()];
+
+  void _restoreGoals(List<Goal> goals) {
+    widget.path.goals = [for (final goal in goals) goal.clone()];
+    widget.path.rebuildPath();
+    widget.onPathChanged?.call();
+  }
+
+  void _changeGoals(void Function() change) {
+    final oldGoals = _cloneGoals();
+
+    widget.undoStack.add(Change(
+      oldGoals,
+      () {
+        setState(() {
+          change();
+          widget.path.rebuildPath();
+          widget.onPathChanged?.call();
+        });
+      },
+      (oldValue) {
+        setState(() => _restoreGoals(oldValue));
+      },
+    ));
+  }
+
+  void _addGoal() {
+    _changeGoals(() {
+      final previous = widget.path.waypoints.isEmpty
+          ? const Translation2d(0.0, 0.0)
+          : widget.path.waypoints.last.anchor;
+
+      widget.path.goals.add(Goal(
+        waypoints: [
+          Waypoint(
+            anchor: previous + const Translation2d(1.0, 0.0),
+          ),
+        ],
+      ));
+    });
+  }
+
+  void _deleteGoal(int index) {
+    if (widget.path.goals.length <= 1) return;
+
+    _changeGoals(() {
+      final removed = widget.path.goals.removeAt(index);
+      _nameControllers.remove(removed)?.dispose();
+      _selectedTabs.remove(removed);
+    });
+  }
+
+  void _moveGoal(int index, int direction) {
+    final newIndex = index + direction;
+
+    if (newIndex < 0 || newIndex >= widget.path.goals.length) return;
+
+    _changeGoals(() {
+      final goal = widget.path.goals.removeAt(index);
+      widget.path.goals.insert(newIndex, goal);
+    });
+  }
+
+  void _addWaypoint(int goalIndex) {
+    _changeGoals(() {
+      final goal = widget.path.goals[goalIndex];
+
+      final previous = goal.waypoints.isEmpty
+          ? widget.path.startPose.translation
+          : goal.waypoints.last.anchor;
+
+      goal.waypoints.add(Waypoint(
+        anchor: previous + const Translation2d(1.0, 0.0),
+      ));
+    });
+  }
+
+  void _deleteWaypoint(int goalIndex, int waypointIndex) {
+    if (widget.path.goals[goalIndex].waypoints.length <= 1) return;
+
+    _changeGoals(() {
+      widget.path.goals[goalIndex].waypoints.removeAt(waypointIndex);
+    });
+  }
+
+  void _updateWaypoint(Waypoint waypoint, void Function() update) {
+    setState(() {
+      update();
+      widget.path.rebuildPath();
+    });
+
+    widget.onPathChanged?.call();
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _nameControllers.values) {
+      controller.dispose();
+    }
+    _nameControllers.clear();
+    super.dispose();
+  }
+
+  Widget _buildGoalNameField(Goal goal) {
+    return TextField(
+      controller: _controllerForGoal(goal),
+      decoration: const InputDecoration(
+        labelText: 'Goal Name',
+        hintText: 'Enter goal name',
+        border: OutlineInputBorder(),
+      ),
+      onChanged: (value) {
+        setState(() {
+          goal.name = value;
+          GoalsStore.addGoal(value);
+        });
+        widget.onPathChanged?.call();
+      },
+    );
+  }
+
+  Widget _buildCommandRow(Goal goal) {
+    final List<DropdownMenuItem<String>> items = [];
+    final seenCommands = <String>{};
+
+    for (final command in CommandsStore.commands) {
+      if (seenCommands.contains(command)) continue;
+      seenCommands.add(command);
+      items.add(DropdownMenuItem<String>(
+        value: command,
+        child: Text(command),
+      ));
+    }
+
+    final selectedValue = goal.command.isEmpty ? null : goal.command;
+
+    if (selectedValue != null && !seenCommands.contains(selectedValue)) {
+      items.insert(
+        0,
+        DropdownMenuItem<String>(
+          value: selectedValue,
+          child: Text('Unknown Command ($selectedValue)'),
+        ),
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            value: selectedValue,
+            decoration: const InputDecoration(
+              labelText: 'Command',
+              border: OutlineInputBorder(),
+            ),
+            isExpanded: true,
+            hint: const Text('No Command'),
+            items: items,
+            onChanged: (value) {
+              setState(() {
+                goal.command = value ?? '';
+              });
+              widget.onPathChanged?.call();
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+        Tooltip(
+          message: 'Manage Commands',
+          child: IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () async {
+              final updated = await Navigator.of(context)
+                  .push<List<String>>(MaterialPageRoute(
+                builder: (context) => CommandPage(
+                  commands: CommandsStore.commands,
+                ),
+              ));
+
+              if (updated != null) {
+                setState(() {
+                  CommandsStore.setCommands(updated);
+                });
+                widget.onPathChanged?.call();
+              }
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTriggerDropdownRow({
+    required String label,
+    required String currentValue,
+    required ValueChanged<String> onChanged,
+  }) {
+    final List<DropdownMenuItem<String>> items = [];
+    final seenTriggers = <String>{};
+
+    for (final trigger in TriggersStore.triggers) {
+      if (seenTriggers.contains(trigger)) continue;
+      seenTriggers.add(trigger);
+      items.add(DropdownMenuItem<String>(
+        value: trigger,
+        child: Text(trigger),
+      ));
+    }
+
+    final selectedValue = currentValue.isEmpty ? null : currentValue;
+
+    if (selectedValue != null && !seenTriggers.contains(selectedValue)) {
+      items.insert(
+        0,
+        DropdownMenuItem<String>(
+          value: selectedValue,
+          child: Text('Unknown Trigger ($selectedValue)'),
+        ),
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            value: selectedValue,
+            decoration: InputDecoration(
+              labelText: label,
+              border: const OutlineInputBorder(),
+            ),
+            isExpanded: true,
+            hint: const Text('No Trigger'),
+            items: items,
+            onChanged: (value) {
+              setState(() {
+                onChanged(value ?? '');
+              });
+              widget.onPathChanged?.call();
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+        Tooltip(
+          message: 'Manage Triggers',
+          child: IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () async {
+              final updated = await Navigator.of(context)
+                  .push<List<String>>(MaterialPageRoute(
+                builder: (context) => TriggerPage(
+                  triggers: TriggersStore.triggers,
+                ),
+              ));
+
+              if (updated != null) {
+                setState(() {
+                  TriggersStore.setTriggers(updated);
+                });
+                widget.onPathChanged?.call();
+              }
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBackupGoalDropdown(Goal currentGoal) {
+    final List<DropdownMenuItem<String>> items = [];
+    final seenGoals = <String>{};
+    final currentGoalName = currentGoal.name.trim();
+
+    // Combine global goals from all paths + any unsaved goals in the current path
+    final allAvailableGoalNames = <String>[
+      ...GoalsStore.goals,
+      for (final g in widget.path.goals)
+        if (!identical(g, currentGoal)) g.name,
+    ];
+
+    for (final rawName in allAvailableGoalNames) {
+      final goalName = rawName.trim();
+      if (goalName.isEmpty ||
+          goalName == currentGoalName ||
+          seenGoals.contains(goalName)) {
+        continue;
+      }
+      seenGoals.add(goalName);
+      items.add(DropdownMenuItem<String>(
+        value: goalName,
+        child: Text(goalName),
+      ));
+    }
+
+    final selectedValue =
+        currentGoal.backUpGoal.isEmpty ? null : currentGoal.backUpGoal;
+
+    if (selectedValue != null && !seenGoals.contains(selectedValue)) {
+      items.insert(
+        0,
+        DropdownMenuItem<String>(
+          value: selectedValue,
+          child: Text('Unknown Goal ($selectedValue)'),
+        ),
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      value: selectedValue,
+      decoration: const InputDecoration(
+        labelText: 'Backup Goal',
+        border: OutlineInputBorder(),
+      ),
+      isExpanded: true,
+      hint: const Text('No Backup Goal'),
+      items: items,
+      onChanged: (value) {
+        setState(() {
+          currentGoal.backUpGoal = value ?? '';
+        });
+        widget.onPathChanged?.call();
+      },
+    );
+  }
+
+  Widget _buildStateOptionChip({
+    required String label,
+    required bool selected,
+    required ValueChanged<bool> onSelected,
+  }) {
+    return FilterChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          color: selected ? Colors.white : null,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ),
+      selected: selected,
+      selectedColor: Colors.green.shade600,
+      checkmarkColor: Colors.white,
+      onSelected: (value) {
+        setState(() {
+          onSelected(value);
+        });
+        widget.onPathChanged?.call();
+      },
+    );
+  }
+
+  Widget _buildStatesTab(Goal goal) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildGoalNameField(goal),
+          const SizedBox(height: 12),
+          _buildCommandRow(goal),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildStateOptionChip(
+                label: 'Finish When Drive Finishes',
+                selected: goal.finishWhenDriveFinishes,
+                onSelected: (val) => goal.finishWhenDriveFinishes = val,
+              ),
+              _buildStateOptionChip(
+                label: 'With Success Condition',
+                selected: goal.withSuccessCondition,
+                onSelected: (val) => goal.withSuccessCondition = val,
+              ),
+              _buildStateOptionChip(
+                label: 'With Failiure Condition',
+                selected: goal.withFailiureCondition,
+                onSelected: (val) => goal.withFailiureCondition = val,
+              ),
+              _buildStateOptionChip(
+                label: 'CommandBased Goal',
+                selected: goal.commandBasedGoal,
+                onSelected: (val) => goal.commandBasedGoal = val,
+              ),
+            ],
+          ),
+          if (goal.withSuccessCondition) ...[
+            const SizedBox(height: 12),
+            _buildTriggerDropdownRow(
+              label: 'Success Condition',
+              currentValue: goal.successCondition,
+              onChanged: (val) => goal.successCondition = val,
+            ),
+          ],
+          if (goal.withFailiureCondition) ...[
+            const SizedBox(height: 12),
+            _buildTriggerDropdownRow(
+              label: 'Failiure Condition',
+              currentValue: goal.failiureCondition,
+              onChanged: (val) => goal.failiureCondition = val,
+            ),
+            const SizedBox(height: 12),
+            _buildBackupGoalDropdown(goal),
+          ],
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TreeCardNode(
+      title: const Text('Goals'),
+      leading: const Icon(Icons.flag_circle_outlined),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ItemCount(count: widget.path.goals.length),
+          IconButton(
+            tooltip: 'Add Goal',
+            onPressed: _addGoal,
+            icon: const Icon(Icons.add),
+          ),
+        ],
+      ),
+      initiallyExpanded: true,
+      children: [
+        for (int index = 0; index < widget.path.goals.length; index++)
+          _buildGoal(index, widget.path.goals[index]),
+      ],
+    );
+  }
+
+  Widget _buildGoal(int index, Goal goal) {
+    final selectedTab = _selectedTabs[goal] ?? 0;
+    final headerTitle = goal.name.trim().isEmpty
+        ? 'Goal ${index + 1}'
+        : 'Goal ${index + 1}: ${goal.name.trim()}';
+
+    return TreeCardNode(
+      key: ValueKey('goal_${index}_${goal.waypoints.length}'),
+      title: Text(headerTitle),
+      leading: const Icon(Icons.flag_outlined),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Move Goal Up',
+            onPressed: index == 0 ? null : () => _moveGoal(index, -1),
+            icon: const Icon(Icons.arrow_upward),
+          ),
+          IconButton(
+            tooltip: 'Move Goal Down',
+            onPressed: index == widget.path.goals.length - 1
+                ? null
+                : () => _moveGoal(index, 1),
+            icon: const Icon(Icons.arrow_downward),
+          ),
+          IconButton(
+            tooltip: 'Delete Goal',
+            onPressed: widget.path.goals.length <= 1
+                ? null
+                : () => _deleteGoal(index),
+            icon: const Icon(Icons.delete_outline),
+          ),
+        ],
+      ),
+      initiallyExpanded: true,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(
+                value: 0,
+                label: Text('Waypoints'),
+                icon: Icon(Icons.location_on_outlined),
+              ),
+              ButtonSegment(
+                value: 1,
+                label: Text('States'),
+                icon: Icon(Icons.terminal),
+              ),
+            ],
+            selected: {selectedTab},
+            onSelectionChanged: (selection) {
+              setState(() {
+                _selectedTabs[goal] = selection.first;
+              });
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (selectedTab == 0) ...[
+          TreeCardNode(
+            key: ValueKey(
+                'waypoints_sub_tree_${index}_${goal.waypoints.length}'),
+            title: const Text('Waypoints'),
+            leading: const Icon(Icons.location_on_outlined),
+            elevation: 1,
+            indent: 8,
+            initiallyExpanded: true,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ItemCount(count: goal.waypoints.length),
+                IconButton(
+                  tooltip: 'Add Waypoint',
+                  onPressed: () => _addWaypoint(index),
+                  icon: const Icon(Icons.add),
+                ),
+              ],
+            ),
+            children: [
+              for (int waypointIndex = 0;
+                  waypointIndex < goal.waypoints.length;
+                  waypointIndex++)
+                _buildWaypointCard(
+                  index,
+                  waypointIndex,
+                  goal.waypoints[waypointIndex],
+                ),
+            ],
+          ),
+        ] else ...[
+          _buildStatesTab(goal),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildWaypointCard(
+    int goalIndex,
+    int waypointIndex,
+    Waypoint waypoint,
+  ) {
+    return TreeCardNode(
+      key: ObjectKey(waypoint),
+      elevation: 0,
+      indent: 4,
+      title: Text('Waypoint ${waypointIndex + 1}'),
+      leading: const Icon(Icons.location_on_outlined),
+      initiallyExpanded: true,
+      trailing: IconButton(
+        tooltip: 'Delete Waypoint',
+        onPressed: widget.path.goals[goalIndex].waypoints.length <= 1
+            ? null
+            : () => _deleteWaypoint(goalIndex, waypointIndex),
+        icon: const Icon(Icons.delete_outline),
+      ),
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: NumberTextField(
+                  initialValue: waypoint.anchor.x,
+                  label: 'X Position (M)',
+                  enabled: !waypoint.isLocked,
+                  onSubmitted: (value) => value == null
+                      ? null
+                      : _updateWaypoint(
+                          waypoint,
+                          () => waypoint.move(value, waypoint.anchor.y),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: NumberTextField(
+                  initialValue: waypoint.anchor.y,
+                  label: 'Y Position (M)',
+                  enabled: !waypoint.isLocked,
+                  onSubmitted: (value) => value == null
+                      ? null
+                      : _updateWaypoint(
+                          waypoint,
+                          () => waypoint.move(waypoint.anchor.x, value),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        _buildWaypointDropdownRow(
+          label: 'Heading Strat',
+          value: waypoint.headingStratName,
+          items: [
+            for (final strat in HeadingStratsStore.settings)
+              DropdownMenuItem(
+                value: strat.name,
+                child: Text(strat.name),
+              ),
+          ],
+          onChanged: waypoint.isLocked
+              ? null
+              : (value) => _updateWaypoint(
+                    waypoint,
+                    () => waypoint.headingStratName = value,
+                  ),
+          onGearPressed: () async {
+            final updatedStrats =
+                await Navigator.of(context).push<List<HeadingStrat>>(
+              MaterialPageRoute(
+                builder: (context) => HeadingStratsPage(
+                  headingStrats: HeadingStratsStore.settings,
+                ),
+              ),
+            );
+            if (updatedStrats != null) {
+              setState(() {
+                HeadingStratsStore.setSettings(updatedStrats);
+              });
+              widget.onPathChanged?.call();
+            }
+          },
+          gearTooltip: 'Edit Heading Strategies',
+        ),
+        _buildWaypointDropdownRow(
+          label: 'Controller Setting',
+          value: waypoint.controllerSettingName,
+          items: [
+            for (final setting in ControllerSettingsStore.settings)
+              DropdownMenuItem(
+                value: setting.name,
+                child: Text(setting.name),
+              ),
+          ],
+          onChanged: waypoint.isLocked
+              ? null
+              : (value) => _updateWaypoint(
+                    waypoint,
+                    () => waypoint.controllerSettingName = value,
+                  ),
+          onGearPressed: () async {
+            final updatedSettings =
+                await Navigator.of(context).push<List<ControllerSetting>>(
+              MaterialPageRoute(
+                builder: (context) => ControllerSettingsPage(
+                  controllerSettings: ControllerSettingsStore.settings,
+                ),
+              ),
+            );
+            if (updatedSettings != null) {
+              setState(() {
+                ControllerSettingsStore.setSettings(updatedSettings);
+              });
+              widget.onControllerSettingsChanged?.call();
+            }
+            final updatedStrats =
+                await Navigator.of(context).push<List<HeadingStrat>>(
+              MaterialPageRoute(
+                builder: (context) => HeadingStratsPage(
+                  headingStrats: HeadingStratsStore.settings,
+                ),
+              ),
+            );
+            if (updatedStrats != null) {
+              setState(() {
+                HeadingStratsStore.setSettings(updatedStrats);
+              });
+              widget.onHeadingStratsChanged?.call();
+            }
+          },
+          gearTooltip: 'Edit Controller Settings',
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: NumberTextField(
+                  initialValue: waypoint.tolerance,
+                  label: 'Arrival Tolerance (M)',
+                  enabled: !waypoint.isLocked,
+                  onSubmitted: (value) => value == null
+                      ? null
+                      : _updateWaypoint(
+                          waypoint,
+                          () => waypoint.tolerance = value,
+                        ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: NumberTextField(
+                  initialValue: waypoint.toleranceDeg,
+                  label: 'Rotation Tolerance (Deg)',
+                  enabled: !waypoint.isLocked,
+                  onSubmitted: (value) => value == null
+                      ? null
+                      : _updateWaypoint(
+                          waypoint,
+                          () => waypoint.toleranceDeg = value,
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: IconButton(
+            tooltip: waypoint.isLocked
+                ? 'Unlock Waypoint'
+                : 'Lock Waypoint',
+            onPressed: () => _updateWaypoint(
+              waypoint,
+              () => waypoint.isLocked = !waypoint.isLocked,
+            ),
+            icon: Icon(
+              waypoint.isLocked ? Icons.lock : Icons.lock_open,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWaypointDropdownRow({
+    required String label,
+    required String? value,
+    required List<DropdownMenuItem<String>> items,
+    required ValueChanged<String?>? onChanged,
+    required VoidCallback onGearPressed,
+    required String gearTooltip,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              value: value,
+              decoration: InputDecoration(labelText: label),
+              isExpanded: true,
+              items: items,
+              onChanged: onChanged,
+            ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            tooltip: gearTooltip,
+            onPressed: onGearPressed,
+            icon: const Icon(Icons.settings),
+          ),
+        ],
+      ),
+    );
+  }
+}

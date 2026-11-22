@@ -16,7 +16,8 @@ class Waypoint {
   num toleranceDeg;
   bool isLocked;
   String? linkedName;
-  String? controllerSettingId; // Reference to a controller setting
+  String? controllerSettingName; // Reference to a controller setting
+  String? headingStratName;
 
   bool _isAnchorDragging = false;
   bool _isHeadingDragging = false;
@@ -31,7 +32,8 @@ class Waypoint {
     this.toleranceDeg = 360,
     this.isLocked = false,
     this.linkedName,
-    this.controllerSettingId,
+    this.controllerSettingName,
+    this.headingStratName,
   }) : holonomicAngle = holonomicAngle ?? const Rotation2d();
 
   bool get isAnchorDragging => _isAnchorDragging;
@@ -40,16 +42,13 @@ class Waypoint {
 
   Waypoint.fromJson(Map<String, dynamic> json)
       : this(
-          anchor: Translation2d.fromJson(json['anchor']),
-          holonomicAngle: _holonomicAngleFromJson(json),
-          kp: json['kp'] ?? 0.0,
-          ki: json['ki'] ?? 0.0,
-          kd: json['kd'] ?? 0.0,
+          anchor: Translation2d.fromJson(json['translation']),
           tolerance: json['tolerance'] ?? 0.1,
           toleranceDeg: json['toleranceDeg'] ?? 360,
           isLocked: json['isLocked'] ?? false,
           linkedName: json['linkedName'],
-          controllerSettingId: json['controllerSettingId'],
+          controllerSettingName: json['controllerSettings'],
+          headingStratName: json['headingStrat'],
         );
 
   static Rotation2d _holonomicAngleFromJson(Map<String, dynamic> json) {
@@ -74,16 +73,12 @@ class Waypoint {
 
   Map<String, dynamic> toJson() {
     return {
-      'anchor': anchor.toJson(),
-      'holonomicAngle': holonomicAngle.degrees,
-      'kp': kp,
-      'ki': ki,
-      'kd': kd,
+      'translation': anchor.toJson(),
       'tolerance': tolerance,
       'toleranceDeg': toleranceDeg,
-      'isLocked': isLocked,
       'linkedName': linkedName,
-      'controllerSettingId': controllerSettingId,
+      'controllerSettings': controllerSettingName,
+      'headingStrat': headingStratName,
     };
   }
 
@@ -111,7 +106,8 @@ class Waypoint {
       toleranceDeg: toleranceDeg,
       isLocked: isLocked,
       linkedName: linkedName,
-      controllerSettingId: controllerSettingId,
+            controllerSettingName: controllerSettingName,
+      headingStratName: headingStratName,
     );
   }
 
@@ -122,7 +118,8 @@ class Waypoint {
   }
 
   Translation2d headingHandlePosition() {
-    return anchor + Translation2d.fromAngle(headingHandleLength, holonomicAngle);
+    return anchor +
+        Translation2d.fromAngle(headingHandleLength, holonomicAngle);
   }
 
   bool isPointInAnchor(num xPos, num yPos, num radius) {
@@ -149,7 +146,8 @@ class Waypoint {
     } else if (_isHeadingDragging) {
       // Do not allow interactive heading changes when waypoint is locked
       if (!isLocked) {
-        Rotation2d newHeading = Rotation2d.fromComponents(x - anchor.x, y - anchor.y);
+        Rotation2d newHeading =
+            Rotation2d.fromComponents(x - anchor.x, y - anchor.y);
         if (newHeading.radians.isFinite) {
           holonomicAngle = newHeading;
         }
@@ -171,12 +169,13 @@ class Waypoint {
       other.kp == kp &&
       other.ki == ki &&
       other.kd == kd &&
-  other.tolerance == tolerance &&
-  other.toleranceDeg == toleranceDeg &&
+      other.tolerance == tolerance &&
+      other.toleranceDeg == toleranceDeg &&
       other.linkedName == linkedName &&
-      other.controllerSettingId == controllerSettingId;
+      other.controllerSettingName == controllerSettingName &&
+      other.headingStratName == headingStratName;
 
   @override
-  int get hashCode => Object.hash(
-    anchor, holonomicAngle, kp, ki, kd, tolerance, toleranceDeg, linkedName, controllerSettingId);
+  int get hashCode => Object.hash(anchor, holonomicAngle, kp, ki, kd, tolerance,
+      toleranceDeg, linkedName, controllerSettingName, headingStratName);
 }
