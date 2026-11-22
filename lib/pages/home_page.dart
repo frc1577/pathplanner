@@ -74,6 +74,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
 
+    _setupStores();
+
     _animController = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 250));
     _scaleAnimation =
@@ -485,6 +487,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
+  void _setupStores() {
+    CommandsStore.setOnChangedCallback(_onProjectSettingsChanged);
+    TriggersStore.setOnChangedCallback(_onProjectSettingsChanged);
+    HeadingStratsStore.setOnChangedCallback(_onProjectSettingsChanged);
+  }
+
   void _onProjectSettingsChanged() {
     ProjectPage.settingsUpdated = true;
     _saveProjectSettingsToFile(_projectDir!);
@@ -796,5 +804,4 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     GoalsStore.setGoals(goalNames.toList());
   }
-  
 }

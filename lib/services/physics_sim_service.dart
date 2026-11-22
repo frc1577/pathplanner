@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:pathplanner/controllers/profiled_pid_controller.dart';
 import 'package:pathplanner/path/goal_picker.dart';
 import 'package:pathplanner/path/heading_strat.dart';
@@ -593,23 +594,29 @@ class PhysicsSimService {
   }
 
   static HeadingStrat? _getHeadingStratByName(String? name) {
-      if (name == null) return null;
+    if (name == null) return null;
 
-      for (final headingStrat in HeadingStratsStore.settings) {
-        if (headingStrat.name == name) return headingStrat;
-      }
-
-      return null;
+    for (final headingStrat in HeadingStratsStore.settings) {
+      if (headingStrat.name == name) return headingStrat;
     }
+
+    return null;
+  }
 }
 
 class CommandsStore {
   static List<String> _commands = _defaultCommands();
+  static VoidCallback? _onChangedCallback;
 
   static List<String> get commands => List.unmodifiable(_commands);
 
+  static void setOnChangedCallback(VoidCallback? callback) {
+    _onChangedCallback = callback;
+  }
+
   static void setCommands(List<String> commands) {
     _commands = List.of(commands);
+    _onChangedCallback?.call();
   }
 
   static void loadFromJson(dynamic json) {
@@ -653,11 +660,17 @@ class CommandsStore {
 
 class TriggersStore {
   static List<String> _triggers = _defaultTriggers();
+  static VoidCallback? _onChangedCallback;
 
   static List<String> get triggers => List.unmodifiable(_triggers);
 
+  static void setOnChangedCallback(VoidCallback? callback) {
+    _onChangedCallback = callback;
+  }
+
   static void setTriggers(List<String> triggers) {
     _triggers = List.of(triggers);
+    _onChangedCallback?.call();
   }
 
   static void loadFromJson(dynamic json) {
@@ -727,10 +740,9 @@ class ControllerSettingsStore {
     _settings = _defaultSettings();
   }
 
-  static List<Map<String, dynamic>> toJson() {
+  static List<dynamic> toJson() {
     return [for (final setting in _settings) setting.toJson()];
   }
-
   static List<ControllerSetting> _defaultSettings() {
     return [
       ControllerSetting(
@@ -765,10 +777,15 @@ class ControllerSettingsStore {
 
 class HeadingStratsStore {
   static List<HeadingStrat> _headingStrats = _defaultHeadingStrats();
+  static VoidCallback? _onChangedCallback;
 
   static List<HeadingStrat> get settings => List.unmodifiable(_headingStrats);
 
-    static String createSimpleHeadingStrat({
+  static void setOnChangedCallback(VoidCallback? callback) {
+    _onChangedCallback = callback;
+  }
+
+  static String createSimpleHeadingStrat({
     required double degrees,
     required String pathName,
     required int waypointNumber,
@@ -787,11 +804,13 @@ class HeadingStratsStore {
         condition: '',
       ),
     ];
+    _onChangedCallback?.call();
     return name;
   }
 
   static void setSettings(List<HeadingStrat> headingStrats) {
     _headingStrats = List.of(headingStrats);
+    _onChangedCallback?.call();
   }
 
   static void loadFromJson(dynamic json) {
@@ -813,10 +832,9 @@ class HeadingStratsStore {
     _headingStrats = _defaultHeadingStrats();
   }
 
-  static List<Map<String, dynamic>> toJson() {
+  static List<dynamic> toJson() {
     return [for (final headingStrat in _headingStrats) headingStrat.toJson()];
   }
-
   static List<HeadingStrat> _defaultHeadingStrats() {
     return [];
   }
