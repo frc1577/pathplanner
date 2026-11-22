@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
-import 'package:pathplanner/commands/named_trigger.dart';
+import 'package:pathplanner/namedObjects/named_command.dart';
 
-abstract class Trigger {
+abstract class Command {
   Map<String, dynamic> dataToJson();
 
-  Trigger clone();
+  Command clone();
 
   @nonVirtual
   Map<String, dynamic> toJson() {
@@ -13,8 +13,8 @@ abstract class Trigger {
     };
   }
 
-  static Trigger? fromJson(Map<String, dynamic> json) {
+  static Command? fromJson(Map<String, dynamic> json) {
     Map<String, dynamic> data = json['data'] ?? {};
-    return NamedTrigger.fromDataJson(data);
+    return NamedCommand.fromDataJson(data);
   }
 }

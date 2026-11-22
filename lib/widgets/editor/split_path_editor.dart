@@ -7,7 +7,7 @@ import 'package:pathplanner/path/constraints_zone.dart';
 import 'package:pathplanner/path/event_marker.dart';
 import 'package:pathplanner/path/goal.dart';
 import 'package:pathplanner/path/goal_picker.dart';
-import 'package:pathplanner/path/heading_strat.dart';
+import 'package:pathplanner/namedObjects/heading_strat.dart';
 import 'package:pathplanner/path/path_constraints.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/waypoint.dart';

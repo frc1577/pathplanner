@@ -1,4 +1,4 @@
-import 'package:pathplanner/commands/trigger.dart';
+import 'package:pathplanner/namedObjects/trigger.dart';
 
 class NamedTrigger extends Trigger {
   String? name;

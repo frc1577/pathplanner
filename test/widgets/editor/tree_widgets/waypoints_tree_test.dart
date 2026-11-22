@@ -2,7 +2,7 @@ import 'package:file/memory.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pathplanner/path/heading_strat.dart';
+import 'package:pathplanner/namedObjects/heading_strat.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/services/physics_sim_service.dart';

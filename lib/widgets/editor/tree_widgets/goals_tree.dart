@@ -5,7 +5,7 @@ import 'package:pathplanner/pages/heading_strats_page.dart';
 import 'package:pathplanner/pages/trigger_page.dart';
 import 'package:pathplanner/path/goal.dart';
 import 'package:pathplanner/path/goal_picker.dart';
-import 'package:pathplanner/path/heading_strat.dart';
+import 'package:pathplanner/namedObjects/heading_strat.dart';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/services/physics_sim_service.dart';
 import 'package:pathplanner/util/wpimath/geometry.dart';

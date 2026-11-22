@@ -2,7 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pathplanner/commands/command_groups.dart';
-import 'package:pathplanner/commands/named_command.dart';
+import 'package:pathplanner/namedObjects/named_command.dart';
 import 'package:pathplanner/commands/path_command.dart';
 import 'package:pathplanner/commands/wait_command.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/commands/add_command_button.dart';

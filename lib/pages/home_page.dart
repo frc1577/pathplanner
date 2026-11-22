@@ -13,8 +13,8 @@ import 'package:pathplanner/pages/project/project_page.dart';
 import 'package:pathplanner/pages/telemetry_page.dart';
 import 'package:pathplanner/pages/welcome_page.dart';
 import 'package:pathplanner/services/log.dart';
-import 'package:pathplanner/services/physics_sim_service.dart';
 import 'package:pathplanner/services/pplib_telemetry.dart';
+import 'package:pathplanner/services/stores_Service.dart';
 import 'package:pathplanner/services/update_checker.dart';
 import 'package:pathplanner/util/prefs.dart';
 import 'package:pathplanner/widgets/custom_appbar.dart';
@@ -760,7 +760,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
 
     await _loadProjectSettingsFromFile(_projectDir!);
-    await _loadAllGoalsFromProject();
   }
 
   Future<void> _loadFieldImages() async {
@@ -776,32 +775,4 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _loadAllGoalsFromProject() async {
-    final goalNames = <String>{};
-
-    if (await _pathplannerDir.exists()) {
-      await for (final entity in _pathplannerDir.list(recursive: true)) {
-        if (entity is File && entity.path.endsWith('.path')) {
-          try {
-            final content = await entity.readAsString();
-            final data = jsonDecode(content);
-            if (data is Map<String, dynamic> && data['goals'] is List) {
-              for (final goalJson in data['goals']) {
-                if (goalJson is Map<String, dynamic>) {
-                  final name = (goalJson['name'] ?? '').toString().trim();
-                  if (name.isNotEmpty) {
-                    goalNames.add(name);
-                  }
-                }
-              }
-            }
-          } catch (e, stack) {
-            Log.error('Failed to read goals from ${entity.path}', e, stack);
-          }
-        }
-      }
-    }
-
-    GoalsStore.setGoals(goalNames.toList());
-  }
 }

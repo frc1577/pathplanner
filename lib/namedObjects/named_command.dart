@@ -1,9 +1,9 @@
-import 'package:pathplanner/commands/command.dart';
+import 'package:pathplanner/namedObjects/command.dart';
 
 class NamedCommand extends Command {
   String? name;
 
-  NamedCommand({this.name}) : super(type: 'named');
+  NamedCommand({this.name});
 
   NamedCommand.fromDataJson(Map<String, dynamic> json)
       : this(name: json['name']);
@@ -22,10 +22,8 @@ class NamedCommand extends Command {
 
   @override
   bool operator ==(Object other) =>
-      other is NamedCommand &&
-      other.runtimeType == runtimeType &&
-      other.name == name;
+      other is NamedCommand && other.name == name;
 
   @override
-  int get hashCode => Object.hash(type, name);
+  int get hashCode => Object.hash(name, name);
 }

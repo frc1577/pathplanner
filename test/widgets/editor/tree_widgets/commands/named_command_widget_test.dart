@@ -1,7 +1,7 @@
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pathplanner/commands/named_command.dart';
+import 'package:pathplanner/namedObjects/named_command.dart';
 import 'package:pathplanner/pages/project/project_page.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/commands/named_command_widget.dart';
 import 'package:undo/undo.dart';

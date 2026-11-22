@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pathplanner/path/constraints_zone.dart';
 import 'package:pathplanner/path/event_marker.dart';
-import 'package:pathplanner/path/heading_strat.dart';
+import 'package:pathplanner/namedObjects/heading_strat.dart';
 import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/pages/heading_strats_page.dart';

@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart';
 import 'package:pathplanner/auto/pathplanner_auto.dart';
 import 'package:pathplanner/commands/command_groups.dart';
-import 'package:pathplanner/commands/named_command.dart';
+import 'package:pathplanner/namedObjects/named_command.dart';
 import 'package:pathplanner/commands/path_command.dart';
 import 'package:pathplanner/pages/choreo_path_editor_page.dart';
 import 'package:pathplanner/pages/project/project_item_card.dart';
