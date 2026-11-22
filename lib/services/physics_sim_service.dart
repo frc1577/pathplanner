@@ -613,20 +613,33 @@ class CommandsStore {
   }
 
   static void loadFromJson(dynamic json) {
+    final defaults = _defaultCommands();
+
     if (json is List) {
       final parsed = <String>[];
+      final seen = <String>{};
+
       for (final entry in json) {
-        final value = entry?.toString() ?? '';
-        if (value.isNotEmpty) {
+        final value = entry?.toString().trim() ?? '';
+        if (value.isNotEmpty && seen.add(value)) {
           parsed.add(value);
         }
       }
 
-      _commands = parsed;
+      if (parsed.isEmpty) {
+        _commands = defaults;
+        return;
+      }
+
+      _commands = [
+        for (final item in defaults)
+          if (!parsed.contains(item)) item,
+        ...parsed,
+      ];
       return;
     }
 
-    _commands = _defaultCommands();
+    _commands = defaults;
   }
 
   static List<String> toJson() {
@@ -634,7 +647,7 @@ class CommandsStore {
   }
 
   static List<String> _defaultCommands() {
-    return [];
+    return ['None'];
   }
 }
 
@@ -648,20 +661,33 @@ class TriggersStore {
   }
 
   static void loadFromJson(dynamic json) {
+    final defaults = _defaultTriggers();
+
     if (json is List) {
       final parsed = <String>[];
+      final seen = <String>{};
+
       for (final entry in json) {
-        final value = entry?.toString() ?? '';
-        if (value.isNotEmpty) {
+        final value = entry?.toString().trim() ?? '';
+        if (value.isNotEmpty && seen.add(value)) {
           parsed.add(value);
         }
       }
 
-      _triggers = parsed;
+      if (parsed.isEmpty) {
+        _triggers = defaults;
+        return;
+      }
+
+      _triggers = [
+        for (final item in defaults)
+          if (!parsed.contains(item)) item,
+        ...parsed,
+      ];
       return;
     }
 
-    _triggers = _defaultTriggers();
+    _triggers = defaults;
   }
 
   static List<String> toJson() {
@@ -669,7 +695,7 @@ class TriggersStore {
   }
 
   static List<String> _defaultTriggers() {
-    return [];
+    return ['True', 'False'];
   }
 }
 
