@@ -23,28 +23,49 @@ class _ControllerSettingsPageState extends State<ControllerSettingsPage> {
   void initState() {
     super.initState();
     // Use mutable maps for editing, convert back on save
-  _controllerSettings = widget.controllerSettings
-    .map((c) => <String, Object?>{
-        'name': c.name,
-        'kp': c.kp,
-        'ki': c.ki,
-        'kd': c.kd,
-        'cruiseVelocity': c.cruiseVelocity,
-        'maxAcceleration': c.maxAcceleration,
-        'angularKp': c.angularKp,
-        'angularKi': c.angularKi,
-        'angularKd': c.angularKd,
-        'angularMaxVelocity': c.angularMaxVelocity,
-        'angularMaxAcceleration': c.angularMaxAcceleration,
-      })
-    .toList(growable: true);
+    _controllerSettings = widget.controllerSettings
+        .map((c) => <String, Object?>{
+              'name': c.name,
+              'kp': c.kp,
+              'ki': c.ki,
+              'kd': c.kd,
+              'cruiseVelocity': c.cruiseVelocity,
+              'maxAcceleration': c.maxAcceleration,
+              'angularKp': c.angularKp,
+              'angularKi': c.angularKi,
+              'angularKd': c.angularKd,
+              'angularMaxVelocity': c.angularMaxVelocity,
+              'angularMaxAcceleration': c.angularMaxAcceleration,
+            })
+        .toList(growable: true);
   }
 
-void _addControllerSetting() {
+  String _nextUniqueName() {
+    final lowerSet = _controllerSettings
+        .map((m) => (m['name']?.toString() ?? '').trim().toLowerCase())
+        .toSet();
+    var i = _controllerSettings.length + 1;
+    while (lowerSet.contains('new setting $i')) {
+      i++;
+    }
+    return 'New Setting $i';
+  }
+
+  String? _findDuplicateName() {
+    final seen = <String>{};
+    for (final m in _controllerSettings) {
+      final raw = m['name']?.toString().trim() ?? '';
+      final normalized = raw.toLowerCase();
+      if (normalized.isEmpty) continue;
+      if (!seen.add(normalized)) return raw;
+    }
+    return null;
+  }
+
+  void _addControllerSetting() {
     setState(() {
-      final int newIndex = _controllerSettings.length + 1;
       _controllerSettings.add(<String, Object?>{
-        'name': 'New Setting $newIndex',
+        'name': _nextUniqueName(),
         'kp': 0.0,
         'ki': 0.0,
         'kd': 0.0,
@@ -69,19 +90,24 @@ void _addControllerSetting() {
 
   void _notifyChanged() {
     if (widget.onChanged != null) {
-      widget.onChanged!(List.unmodifiable(_controllerSettings.map((m) => ControllerSetting(
-            name: m['name'].toString(),
-            kp: (m['kp'] as num).toDouble(),
-            ki: (m['ki'] as num).toDouble(),
-            kd: (m['kd'] as num).toDouble(),
-            cruiseVelocity: (m['cruiseVelocity'] as num).toDouble(),
-            maxAcceleration: (m['maxAcceleration'] as num).toDouble(),
-            angularKp: (m['angularKp'] as num).toDouble(),
-            angularKi: (m['angularKi'] as num).toDouble(),
-            angularKd: (m['angularKd'] as num).toDouble(),
-            angularMaxVelocity: (m['angularMaxVelocity'] as num).toDouble(),
-            angularMaxAcceleration: (m['angularMaxAcceleration'] as num).toDouble(),
-          ))));
+      widget.onChanged!(
+        List.unmodifiable(
+          _controllerSettings.map((m) => ControllerSetting(
+                name: m['name'].toString(),
+                kp: (m['kp'] as num).toDouble(),
+                ki: (m['ki'] as num).toDouble(),
+                kd: (m['kd'] as num).toDouble(),
+                cruiseVelocity: (m['cruiseVelocity'] as num).toDouble(),
+                maxAcceleration: (m['maxAcceleration'] as num).toDouble(),
+                angularKp: (m['angularKp'] as num).toDouble(),
+                angularKi: (m['angularKi'] as num).toDouble(),
+                angularKd: (m['angularKd'] as num).toDouble(),
+                angularMaxVelocity: (m['angularMaxVelocity'] as num).toDouble(),
+                angularMaxAcceleration:
+                    (m['angularMaxAcceleration'] as num).toDouble(),
+              )),
+        ),
+      );
     }
   }
 
@@ -149,8 +175,13 @@ void _addControllerSetting() {
                     _notifyChanged();
                   });
 
+                  final dup = _findDuplicateName();
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('Imported ${parsed.length} controller(s).'),
+                    content: Text(
+                      dup != null
+                          ? 'Imported ${parsed.length} controller(s), but "$dup" is duplicated.'
+                          : 'Imported ${parsed.length} controller(s).',
+                    ),
                   ));
                 }
               }
@@ -159,23 +190,36 @@ void _addControllerSetting() {
           ),
           TextButton(
             onPressed: () {
-        // Return updated settings as typed ControllerSetting list
-        final out = _controllerSettings
-          .map((m) => ControllerSetting(
-            name: m['name'].toString(),
-            kp: (m['kp'] as num).toDouble(),
-            ki: (m['ki'] as num).toDouble(),
-            kd: (m['kd'] as num).toDouble(),
-            cruiseVelocity: (m['cruiseVelocity'] as num).toDouble(),
-            maxAcceleration: (m['maxAcceleration'] as num).toDouble(),
-            angularKp: (m['angularKp'] as num).toDouble(),
-            angularKi: (m['angularKi'] as num).toDouble(),
-            angularKd: (m['angularKd'] as num).toDouble(),
-            angularMaxVelocity: (m['angularMaxVelocity'] as num).toDouble(),
-            angularMaxAcceleration: (m['angularMaxAcceleration'] as num).toDouble(),
-            ))
-          .toList(growable: false);
-        Navigator.of(context).pop(out);
+              final dup = _findDuplicateName();
+              if (dup != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Duplicate controller name "$dup".'),
+                  ),
+                );
+                return;
+              }
+
+              // Return updated settings as typed ControllerSetting list
+              final out = _controllerSettings
+                  .map((m) => ControllerSetting(
+                        name: m['name'].toString().trim(),
+                        kp: (m['kp'] as num).toDouble(),
+                        ki: (m['ki'] as num).toDouble(),
+                        kd: (m['kd'] as num).toDouble(),
+                        cruiseVelocity: (m['cruiseVelocity'] as num).toDouble(),
+                        maxAcceleration:
+                            (m['maxAcceleration'] as num).toDouble(),
+                        angularKp: (m['angularKp'] as num).toDouble(),
+                        angularKi: (m['angularKi'] as num).toDouble(),
+                        angularKd: (m['angularKd'] as num).toDouble(),
+                        angularMaxVelocity:
+                            (m['angularMaxVelocity'] as num).toDouble(),
+                        angularMaxAcceleration:
+                            (m['angularMaxAcceleration'] as num).toDouble(),
+                      ))
+                  .toList(growable: false);
+              Navigator.of(context).pop(out);
             },
             child: const Text('Save', style: TextStyle(color: Colors.white)),
           ),
@@ -201,7 +245,8 @@ void _addControllerSetting() {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Controller ${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text('Controller ${index + 1}',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
                       IconButton(
                         icon: const Icon(Icons.delete_outline),
                         onPressed: () => _removeControllerSetting(index),
@@ -268,11 +313,13 @@ void _addControllerSetting() {
                       Expanded(
                         child: TextFormField(
                           initialValue: setting['cruiseVelocity'].toString(),
-                          decoration: const InputDecoration(labelText: 'Cruise Velocity'),
+                          decoration:
+                              const InputDecoration(labelText: 'Cruise Velocity'),
                           keyboardType: TextInputType.number,
                           onChanged: (value) {
                             setState(() {
-                              setting['cruiseVelocity'] = double.tryParse(value) ?? 0.0;
+                              setting['cruiseVelocity'] =
+                                  double.tryParse(value) ?? 0.0;
                               _notifyChanged();
                             });
                           },
@@ -282,11 +329,13 @@ void _addControllerSetting() {
                       Expanded(
                         child: TextFormField(
                           initialValue: setting['maxAcceleration'].toString(),
-                          decoration: const InputDecoration(labelText: 'Max Acceleration'),
+                          decoration:
+                              const InputDecoration(labelText: 'Max Acceleration'),
                           keyboardType: TextInputType.number,
                           onChanged: (value) {
                             setState(() {
-                              setting['maxAcceleration'] = double.tryParse(value) ?? 0.0;
+                              setting['maxAcceleration'] =
+                                  double.tryParse(value) ?? 0.0;
                               _notifyChanged();
                             });
                           },
@@ -299,11 +348,13 @@ void _addControllerSetting() {
                       Expanded(
                         child: TextFormField(
                           initialValue: setting['angularKp'].toString(),
-                          decoration: const InputDecoration(labelText: 'angularKp'),
+                          decoration:
+                              const InputDecoration(labelText: 'angularKp'),
                           keyboardType: TextInputType.number,
                           onChanged: (value) {
                             setState(() {
-                              setting['angularKp'] = double.tryParse(value) ?? 0.0;
+                              setting['angularKp'] =
+                                  double.tryParse(value) ?? 0.0;
                               _notifyChanged();
                             });
                           },
@@ -313,11 +364,13 @@ void _addControllerSetting() {
                       Expanded(
                         child: TextFormField(
                           initialValue: setting['angularKi'].toString(),
-                          decoration: const InputDecoration(labelText: 'angularKi'),
+                          decoration:
+                              const InputDecoration(labelText: 'angularKi'),
                           keyboardType: TextInputType.number,
                           onChanged: (value) {
                             setState(() {
-                              setting['angularKi'] = double.tryParse(value) ?? 0.0;
+                              setting['angularKi'] =
+                                  double.tryParse(value) ?? 0.0;
                               _notifyChanged();
                             });
                           },
@@ -327,11 +380,13 @@ void _addControllerSetting() {
                       Expanded(
                         child: TextFormField(
                           initialValue: setting['angularKd'].toString(),
-                          decoration: const InputDecoration(labelText: 'angularKd'),
+                          decoration:
+                              const InputDecoration(labelText: 'angularKd'),
                           keyboardType: TextInputType.number,
                           onChanged: (value) {
                             setState(() {
-                              setting['angularKd'] = double.tryParse(value) ?? 0.0;
+                              setting['angularKd'] =
+                                  double.tryParse(value) ?? 0.0;
                               _notifyChanged();
                             });
                           },
@@ -344,11 +399,13 @@ void _addControllerSetting() {
                       Expanded(
                         child: TextFormField(
                           initialValue: setting['angularMaxVelocity'].toString(),
-                          decoration: const InputDecoration(labelText: 'angularMaxVelocity'),
+                          decoration: const InputDecoration(
+                              labelText: 'angularMaxVelocity'),
                           keyboardType: TextInputType.number,
                           onChanged: (value) {
                             setState(() {
-                              setting['angularMaxVelocity'] = double.tryParse(value) ?? 0.0;
+                              setting['angularMaxVelocity'] =
+                                  double.tryParse(value) ?? 0.0;
                               _notifyChanged();
                             });
                           },
@@ -357,12 +414,15 @@ void _addControllerSetting() {
                       const SizedBox(width: 8),
                       Expanded(
                         child: TextFormField(
-                          initialValue: setting['angularMaxAcceleration'].toString(),
-                          decoration: const InputDecoration(labelText: 'angularMaxAcceleration'),
+                          initialValue:
+                              setting['angularMaxAcceleration'].toString(),
+                          decoration: const InputDecoration(
+                              labelText: 'angularMaxAcceleration'),
                           keyboardType: TextInputType.number,
                           onChanged: (value) {
                             setState(() {
-                              setting['angularMaxAcceleration'] = double.tryParse(value) ?? 0.0;
+                              setting['angularMaxAcceleration'] =
+                                  double.tryParse(value) ?? 0.0;
                               _notifyChanged();
                             });
                           },

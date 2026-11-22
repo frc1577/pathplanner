@@ -35,12 +35,33 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
         .toList(growable: true);
   }
 
+  String _nextUniqueName() {
+    final lowerSet = _headingStrats
+        .map((m) => (m['name']?.toString() ?? '').trim().toLowerCase())
+        .toSet();
+    var i = _headingStrats.length + 1;
+    while (lowerSet.contains('new heading strat $i')) {
+      i++;
+    }
+    return 'New Heading Strat $i';
+  }
+
+  String? _findDuplicateName() {
+    final seen = <String>{};
+    for (final m in _headingStrats) {
+      final raw = m['name']?.toString().trim() ?? '';
+      final normalized = raw.toLowerCase();
+      if (normalized.isEmpty) continue;
+      if (!seen.add(normalized)) return raw;
+    }
+    return null;
+  }
+
   void _addHeadingStrat() {
     setState(() {
-      final int newIndex = _headingStrats.length + 1;
       _headingStrats.add(<String, Object?>{
         'id': DateTime.now().millisecondsSinceEpoch.toString(),
-        'name': 'New Heading Strat $newIndex',
+        'name': _nextUniqueName(),
         'type': HeadingStratKinds.simple,
         'degrees': 0.0,
         'targetX': 0.0,
@@ -88,10 +109,20 @@ class _HeadingStratsPageState extends State<HeadingStratsPage> {
           ),
           TextButton(
             onPressed: () {
+              final dup = _findDuplicateName();
+              if (dup != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Duplicate heading strat name "$dup".'),
+                  ),
+                );
+                return;
+              }
+
               final out = [
                 for (final entry in _headingStrats)
                   HeadingStrat(
-                    name: entry['name'].toString(),
+                    name: entry['name'].toString().trim(),
                     type: entry['type'].toString(),
                     degrees: (entry['degrees'] as num).toDouble(),
                     targetX: (entry['targetX'] as num).toDouble(),

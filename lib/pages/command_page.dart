@@ -1,9 +1,8 @@
-  import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 class CommandPage extends StatefulWidget {
   final List<String> commands;
   final ValueChanged<List<String>>? onChanged;
-
   const CommandPage({
     super.key,
     required this.commands,
@@ -23,9 +22,29 @@ class _CommandPageState extends State<CommandPage> {
     _commands = List<String>.from(widget.commands);
   }
 
+  String _nextUniqueName() {
+    final lowerSet = _commands.map((e) => e.trim().toLowerCase()).toSet();
+    var i = _commands.length + 1;
+    while (lowerSet.contains('new command $i')) {
+      i++;
+    }
+    return 'New Command $i';
+  }
+
+  String? _findDuplicate() {
+    final seen = <String>{};
+    for (final item in _commands) {
+      final raw = item.trim();
+      final normalized = raw.toLowerCase();
+      if (normalized.isEmpty) continue;
+      if (!seen.add(normalized)) return raw;
+    }
+    return null;
+  }
+
   void _addCommand() {
     setState(() {
-      _commands.add('New Command ${_commands.length + 1}');
+      _commands.add(_nextUniqueName());
       _notifyChanged();
     });
   }
@@ -49,10 +68,18 @@ class _CommandPageState extends State<CommandPage> {
         actions: [
           TextButton(
             onPressed: () {
+              final dup = _findDuplicate();
+              if (dup != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Duplicate command name "$dup".'),
+                  ),
+                );
+                return;
+              }
               Navigator.of(context).pop(List<String>.unmodifiable(_commands));
             },
-            child:
-                const Text('Save', style: TextStyle(color: Colors.white)),
+            child: const Text('Save', style: TextStyle(color: Colors.white)),
           ),
           TextButton(
             onPressed: () {
@@ -103,5 +130,3 @@ class _CommandPageState extends State<CommandPage> {
     );
   }
 }
-
-
