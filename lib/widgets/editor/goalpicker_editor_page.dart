@@ -21,6 +21,7 @@ class GoalPickerEditorPage extends StatefulWidget {
   final ChangeStack undoStack;
   final bool shortcuts;
   final VoidCallback? onGoalPickerChanged;
+  final ValueChanged<Goal>? onPromoteGoalToProject;
 
   const GoalPickerEditorPage({
     super.key,
@@ -33,6 +34,7 @@ class GoalPickerEditorPage extends StatefulWidget {
     required this.undoStack,
     this.shortcuts = true,
     this.onGoalPickerChanged,
+    this.onPromoteGoalToProject,
   });
 
   @override
@@ -59,6 +61,7 @@ class _GoalPickerEditorPageState extends State<GoalPickerEditorPage> {
       fieldImage: widget.fieldImage,
       undoStack: widget.undoStack,
       onGoalPickerChanged: widget.onGoalPickerChanged,
+      onPromoteGoalToProject: widget.onPromoteGoalToProject,
       onEditGoalPressed: (goal) async {
         await Navigator.push(
           context,

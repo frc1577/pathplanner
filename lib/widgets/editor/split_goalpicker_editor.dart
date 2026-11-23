@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:multi_split_view/multi_split_view.dart';
@@ -22,6 +23,7 @@ class SplitGoalPickerEditor extends StatefulWidget {
   final FieldImage fieldImage;
   final ChangeStack undoStack;
   final ValueChanged<Goal>? onEditGoalPressed;
+  final ValueChanged<Goal>? onPromoteGoalToProject;
 
   const SplitGoalPickerEditor({
     required this.prefs,
@@ -31,6 +33,7 @@ class SplitGoalPickerEditor extends StatefulWidget {
     required this.undoStack,
     this.onGoalPickerChanged,
     this.onEditGoalPressed,
+    this.onPromoteGoalToProject,
     super.key,
   });
 
@@ -42,6 +45,12 @@ class _SplitGoalPickerEditorState extends State<SplitGoalPickerEditor> {
   final MultiSplitViewController _controller = MultiSplitViewController();
   int? _hoveredGoalIndex;
   late bool _treeOnRight;
+
+  bool _hoveringStartPose = false;
+  bool _hoveringStartHeading = false;
+  bool _draggingStartPose = false;
+  bool _draggingStartHeading = false;
+  Pose2d? _startPoseDragSnapshot;
 
   late TextEditingController _startXController;
   late TextEditingController _startYController;
@@ -134,6 +143,23 @@ class _SplitGoalPickerEditorState extends State<SplitGoalPickerEditor> {
     );
   }
 
+  Translation2d _startHeadingHandlePosition([double handleDistance = 0.75]) {
+    final start = widget.goalPicker.startPose;
+    return start.translation +
+        Translation2d(
+          handleDistance * cos(start.rotation.radians),
+          handleDistance * sin(start.rotation.radians),
+        );
+  }
+
+  bool _isNearStartPose(Translation2d pos, double radius) {
+    return (widget.goalPicker.startPose.translation - pos).norm <= radius;
+  }
+
+  bool _isNearStartHeading(Translation2d pos, double radius) {
+    return (_startHeadingHandlePosition() - pos).norm <= radius;
+  }
+
   @override
   Widget build(BuildContext context) {
     ColorScheme colorScheme = Theme.of(context).colorScheme;
@@ -141,26 +167,143 @@ class _SplitGoalPickerEditorState extends State<SplitGoalPickerEditor> {
     final fieldViewer = Center(
       child: InteractiveViewer(
         maxScale: 10.0,
+        panEnabled: !(_draggingStartPose || _draggingStartHeading),
         child: Padding(
           padding: const EdgeInsets.all(48),
-          child: Stack(
-            children: [
-              widget.fieldImage.getWidget(),
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _GoalPickerPainter(
-                    colorScheme: colorScheme,
-                    goalPicker: widget.goalPicker,
-                    fieldImage: widget.fieldImage,
-                    hideOtherGoalsOnHover:
-                        widget.prefs.getBool(PrefsKeys.hidePathsOnHover) ??
-                            Defaults.hidePathsOnHover,
-                    hoveredGoalIndex: _hoveredGoalIndex,
-                    prefs: widget.prefs,
+          child: AspectRatio(
+            aspectRatio: widget.fieldImage.defaultSize.width /
+                widget.fieldImage.defaultSize.height,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final scale =
+                    constraints.maxWidth / widget.fieldImage.defaultSize.width;
+                final anchorPx = PathPainterUtil.uiPointSizeToPixels(
+                    32, scale, widget.fieldImage);
+                final anchorR = PathPainterUtil.pixelsToMeters(
+                    anchorPx, scale, widget.fieldImage);
+                final headingPx = PathPainterUtil.uiPointSizeToPixels(
+                    32, scale, widget.fieldImage);
+                final headingR = PathPainterUtil.pixelsToMeters(
+                    headingPx, scale, widget.fieldImage);
+
+                return MouseRegion(
+                  cursor: (_draggingStartPose || _draggingStartHeading)
+                      ? SystemMouseCursors.grabbing
+                      : ((_hoveringStartPose || _hoveringStartHeading)
+                          ? SystemMouseCursors.grab
+                          : SystemMouseCursors.basic),
+                  onHover: (event) {
+                    final pos = PathPainterUtil.pixelOffsetToPoint(
+                      event.localPosition,
+                      scale,
+                      widget.fieldImage,
+                    );
+                    final nearHeading = _isNearStartHeading(pos, headingR);
+                    final nearPose =
+                        !nearHeading && _isNearStartPose(pos, anchorR);
+                    if (nearHeading != _hoveringStartHeading ||
+                        nearPose != _hoveringStartPose) {
+                      setState(() {
+                        _hoveringStartHeading = nearHeading;
+                        _hoveringStartPose = nearPose;
+                      });
+                    }
+                  },
+                  onExit: (_) {
+                    if (_hoveringStartPose || _hoveringStartHeading) {
+                      setState(() {
+                        _hoveringStartPose = false;
+                        _hoveringStartHeading = false;
+                      });
+                    }
+                  },
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onPanStart: (details) {
+                      final pos = PathPainterUtil.pixelOffsetToPoint(
+                        details.localPosition,
+                        scale,
+                        widget.fieldImage,
+                      );
+                      if (_isNearStartHeading(pos, headingR)) {
+                        _startPoseDragSnapshot = widget.goalPicker.startPose;
+                        setState(() => _draggingStartHeading = true);
+                      } else if (_isNearStartPose(pos, anchorR)) {
+                        _startPoseDragSnapshot = widget.goalPicker.startPose;
+                        setState(() => _draggingStartPose = true);
+                      }
+                    },
+                    onPanUpdate: (details) {
+                      if (!_draggingStartPose && !_draggingStartHeading) {
+                        return;
+                      }
+                      final pos = PathPainterUtil.pixelOffsetToPoint(
+                        details.localPosition,
+                        scale,
+                        widget.fieldImage,
+                      );
+                      if (_draggingStartHeading) {
+                        final start = widget.goalPicker.startPose.translation;
+                        final angle = atan2(pos.y - start.y, pos.x - start.x);
+                        setState(() {
+                          widget.goalPicker.startPose =
+                              Pose2d(start, Rotation2d(angle));
+                          _syncStartPoseControllers();
+                        });
+                        widget.onGoalPickerChanged?.call();
+                      } else if (_draggingStartPose) {
+                        setState(() {
+                          widget.goalPicker.startPose = Pose2d(
+                            pos,
+                            widget.goalPicker.startPose.rotation,
+                          );
+                          _syncStartPoseControllers();
+                        });
+                        widget.onGoalPickerChanged?.call();
+                      }
+                    },
+                    onPanEnd: (_) {
+                      if (_draggingStartPose || _draggingStartHeading) {
+                        final before = _startPoseDragSnapshot;
+                        final after = widget.goalPicker.startPose;
+                        if (before != null && before != after) {
+                          _recordStartPoseChange(before, after);
+                        }
+                        setState(() {
+                          _draggingStartPose = false;
+                          _draggingStartHeading = false;
+                          _startPoseDragSnapshot = null;
+                        });
+                        widget.onGoalPickerChanged?.call();
+                      }
+                    },
+                    child: Stack(
+                      children: [
+                        Positioned.fill(child: widget.fieldImage.getWidget()),
+                        Positioned.fill(
+                          child: CustomPaint(
+                            painter: _GoalPickerPainter(
+                              colorScheme: colorScheme,
+                              goalPicker: widget.goalPicker,
+                              fieldImage: widget.fieldImage,
+                              hideOtherGoalsOnHover: widget.prefs
+                                      .getBool(PrefsKeys.hidePathsOnHover) ??
+                                  Defaults.hidePathsOnHover,
+                              hoveredGoalIndex: _hoveredGoalIndex,
+                              highlightStartPose:
+                                  _hoveringStartPose || _draggingStartPose,
+                              highlightStartHeading: _hoveringStartHeading ||
+                                  _draggingStartHeading,
+                              prefs: widget.prefs,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
-            ],
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -206,9 +349,9 @@ class _SplitGoalPickerEditorState extends State<SplitGoalPickerEditor> {
                   .setDouble(PrefsKeys.editorTreeWeight, newWeight ?? 0.5);
             },
             children: [
-              if (_treeOnRight) const SizedBox.shrink(),
+              if (_treeOnRight) const IgnorePointer(child: SizedBox.expand()),
               treePanel,
-              if (!_treeOnRight) const SizedBox.shrink(),
+              if (!_treeOnRight) const IgnorePointer(child: SizedBox.expand()),
             ],
           ),
         ),
@@ -256,7 +399,7 @@ class _SplitGoalPickerEditorState extends State<SplitGoalPickerEditor> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Start Pose',
+                  'Start Pose (or drag on field)',
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 8),
@@ -377,18 +520,18 @@ class _SplitGoalPickerEditorState extends State<SplitGoalPickerEditor> {
                 },
               ),
             IconButton(
-              tooltip: 'Add new goal',
+              tooltip: 'Add new goal (also saves to project Goals)',
               icon: const Icon(Icons.add_rounded),
               onPressed: () {
                 final before = _cloneGoals();
-                widget.goalPicker.goals.add(
-                  Goal(
-                    name: 'Goal ${widget.goalPicker.goals.length + 1}',
-                    waypoints: [
-                      Waypoint(anchor: const Translation2d(4.0, 6.0)),
-                    ],
-                  ),
+                final newGoal = Goal(
+                  name: 'Goal ${widget.goalPicker.goals.length + 1}',
+                  waypoints: [
+                    Waypoint(anchor: const Translation2d(4.0, 6.0)),
+                  ],
                 );
+                widget.goalPicker.goals.add(newGoal);
+                widget.onPromoteGoalToProject?.call(newGoal);
                 _recordGoalsChange(before, _cloneGoals());
                 widget.onGoalPickerChanged?.call();
                 setState(() {});
@@ -452,6 +595,18 @@ class _SplitGoalPickerEditorState extends State<SplitGoalPickerEditor> {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              if (widget.onPromoteGoalToProject != null)
+                                IconButton(
+                                  tooltip: 'Save to Project Goals Tab',
+                                  icon: const Icon(
+                                    Icons.drive_file_move_rounded,
+                                    size: 18,
+                                  ),
+                                  onPressed: () {
+                                    widget.onPromoteGoalToProject!(goal);
+                                    setState(() {});
+                                  },
+                                ),
                               if (widget.onEditGoalPressed != null)
                                 IconButton(
                                   tooltip: 'Edit Goal Waypoints',
@@ -510,6 +665,8 @@ class _GoalPickerPainter extends CustomPainter {
   final FieldImage fieldImage;
   final bool hideOtherGoalsOnHover;
   final int? hoveredGoalIndex;
+  final bool highlightStartPose;
+  final bool highlightStartHeading;
   final SharedPreferences prefs;
 
   late final RobotConfig robotConfig;
@@ -521,6 +678,8 @@ class _GoalPickerPainter extends CustomPainter {
     required this.fieldImage,
     required this.hideOtherGoalsOnHover,
     required this.hoveredGoalIndex,
+    required this.highlightStartPose,
+    required this.highlightStartHeading,
     required this.prefs,
   }) {
     robotConfig = RobotConfig.fromPrefs(prefs);
@@ -552,7 +711,7 @@ class _GoalPickerPainter extends CustomPainter {
       }
     }
 
-    // 2. Paint Start Pose robot outline
+    // 2. Paint Start Pose robot outline + draggable handles
     PathPainterUtil.paintRobotOutline(
       goalPicker.startPose,
       fieldImage,
@@ -560,7 +719,9 @@ class _GoalPickerPainter extends CustomPainter {
       robotConfig.bumperOffset,
       scale,
       canvas,
-      Colors.green.withAlpha(160),
+      (highlightStartPose || highlightStartHeading)
+          ? Colors.lightGreenAccent
+          : Colors.green.withAlpha(180),
       colorScheme.surfaceContainer,
       robotFeatures,
     );
@@ -569,6 +730,63 @@ class _GoalPickerPainter extends CustomPainter {
       goalPicker.startPose.translation,
       scale,
       fieldImage,
+    );
+
+    final headingHandleWorld = goalPicker.startPose.translation +
+        Translation2d(
+          0.75 * cos(goalPicker.startPose.rotation.radians),
+          0.75 * sin(goalPicker.startPose.rotation.radians),
+        );
+    final headingOffset = PathPainterUtil.pointToPixelOffset(
+      headingHandleWorld,
+      scale,
+      fieldImage,
+    );
+
+    final handleLinePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..color = Colors.green;
+    canvas.drawLine(startOffset, headingOffset, handleLinePaint);
+
+    final anchorRadius =
+        PathPainterUtil.uiPointSizeToPixels(24, scale, fieldImage);
+    final headingRadius =
+        PathPainterUtil.uiPointSizeToPixels(18, scale, fieldImage);
+
+    // Center drag dot
+    canvas.drawCircle(
+      startOffset,
+      anchorRadius,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..color = highlightStartPose ? Colors.lightGreenAccent : Colors.green,
+    );
+    canvas.drawCircle(
+      startOffset,
+      anchorRadius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = colorScheme.surfaceContainer,
+    );
+
+    // Heading rotation drag handle
+    canvas.drawCircle(
+      headingOffset,
+      headingRadius,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..color =
+            highlightStartHeading ? Colors.lightGreenAccent : Colors.green,
+    );
+    canvas.drawCircle(
+      headingOffset,
+      headingRadius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = colorScheme.surfaceContainer,
     );
 
     final bool hidePoints =

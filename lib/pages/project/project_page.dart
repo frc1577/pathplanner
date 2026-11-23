@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:multi_split_view/multi_split_view.dart';
 import 'package:path/path.dart';
 import 'package:pathplanner/pages/goal_editor_page.dart';
+import 'package:pathplanner/widgets/editor/goalpicker_editor_page.dart';
 import 'package:pathplanner/pages/project/project_item_card.dart';
 import 'package:pathplanner/path/goal.dart';
 import 'package:pathplanner/path/goal_picker.dart';
@@ -1002,10 +1003,28 @@ void _openGoal(_GoalEntry entry) async {
   }
 
   void _openGoalPicker(_GoalPickerEntry entry) async {
-    // TODO: Push your GoalPickerEditorPage here, and call _saveGoalPicker(entry) on changes:
-    // await Navigator.push(context, MaterialPageRoute(builder: (_) => GoalPickerEditorPage(goalPicker: entry.picker, ...)));
-    // _saveGoalPicker(entry);
-    // setState(() => _sortItems());
+    await Navigator.push(
+      this.context,
+      MaterialPageRoute(
+        builder: (context) => GoalPickerEditorPage(
+          prefs: widget.prefs,
+          name: entry.name,
+          goalPicker: entry.picker,
+          allGoals: _goals.map((e) => e.goal).toList(),
+          fieldImage: widget.fieldImage,
+          undoStack: widget.undoStack,
+          shortcuts: widget.shortcuts,
+          onRenamed: (value) => _renameGoalPicker(entry, value, context),
+          onGoalPickerChanged: () {
+            _saveGoalPicker(entry);
+          },
+        ),
+      ),
+    );
+
+    setState(() {
+      _sortItems();
+    });
   }
 
   // ===========================================================================
