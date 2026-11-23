@@ -5,9 +5,8 @@ import 'package:pathplanner/pages/heading_strats_page.dart';
 import 'package:pathplanner/pages/trigger_page.dart';
 import 'package:pathplanner/path/goal.dart';
 import 'package:pathplanner/path/goal_picker.dart';
-import 'package:pathplanner/namedObjects/heading_strat.dart';
 import 'package:pathplanner/path/waypoint.dart';
-import 'package:pathplanner/services/physics_sim_service.dart';
+import 'package:pathplanner/services/stores_Service.dart';
 import 'package:pathplanner/util/wpimath/geometry.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/item_count.dart';
 import 'package:pathplanner/widgets/editor/tree_widgets/tree_card_node.dart';
@@ -61,7 +60,6 @@ class _GoalsTreeState extends State<GoalsTree> {
 
   void _restoreGoals(List<Goal> goals) {
     widget.path.goals = [for (final goal in goals) goal.clone()];
-    widget.path.rebuildPath();
     widget.onPathChanged?.call();
   }
 
@@ -73,7 +71,6 @@ class _GoalsTreeState extends State<GoalsTree> {
       () {
         setState(() {
           change();
-          widget.path.rebuildPath();
           widget.onPathChanged?.call();
         });
       },
@@ -85,9 +82,11 @@ class _GoalsTreeState extends State<GoalsTree> {
 
   void _addGoal() {
     _changeGoals(() {
-      final previous = widget.path.waypoints.isEmpty
-          ? const Translation2d(0.0, 0.0)
-          : widget.path.waypoints.last.anchor;
+      final lastGoal =
+          widget.path.goals.isEmpty ? null : widget.path.goals.last;
+      final previous = (lastGoal == null || lastGoal.waypoints.isEmpty)
+          ? widget.path.startPose.translation
+          : lastGoal.waypoints.last.anchor;
 
       widget.path.goals.add(Goal(
         waypoints: [
@@ -145,7 +144,6 @@ class _GoalsTreeState extends State<GoalsTree> {
   void _updateWaypoint(Waypoint waypoint, void Function() update) {
     setState(() {
       update();
-      widget.path.rebuildPath();
     });
 
     widget.onPathChanged?.call();
@@ -171,7 +169,14 @@ class _GoalsTreeState extends State<GoalsTree> {
       onChanged: (value) {
         setState(() {
           goal.name = value;
-          GoalsStore.addGoal(value);
+          final trimmed = value.trim();
+          if (trimmed.isNotEmpty &&
+              !GoalsStore.goals.any((g) => g.name == trimmed)) {
+            GoalsStore.setGoals([
+              ...GoalsStore.goals,
+              NamedItem(name: trimmed),
+            ]);
+          }
         });
         widget.onPathChanged?.call();
       },
@@ -259,11 +264,11 @@ class _GoalsTreeState extends State<GoalsTree> {
     final seenTriggers = <String>{};
 
     for (final trigger in TriggersStore.triggers) {
-      if (seenTriggers.contains(trigger)) continue;
-      seenTriggers.add(trigger);
+      if (seenTriggers.contains(trigger.name)) continue;
+      seenTriggers.add(trigger.name);
       items.add(DropdownMenuItem<String>(
-        value: trigger,
-        child: Text(trigger),
+        value: trigger.name,
+        child: Text(trigger.name),
       ));
     }
 
@@ -309,13 +314,15 @@ class _GoalsTreeState extends State<GoalsTree> {
               final updated = await Navigator.of(context)
                   .push<List<String>>(MaterialPageRoute(
                 builder: (context) => TriggerPage(
-                  triggers: TriggersStore.triggers,
+                  triggers: TriggersStore.triggers.map((t) => t.name).toList(),
                 ),
               ));
 
               if (updated != null) {
                 setState(() {
-                  TriggersStore.setTriggers(updated);
+                  TriggersStore.setTriggers(
+                    updated.map((name) => NamedItem(name: name)).toList(),
+                  );
                 });
                 widget.onPathChanged?.call();
               }
@@ -331,9 +338,8 @@ class _GoalsTreeState extends State<GoalsTree> {
     final seenGoals = <String>{};
     final currentGoalName = currentGoal.name.trim();
 
-    // Combine global goals from all paths + any unsaved goals in the current path
     final allAvailableGoalNames = <String>[
-      ...GoalsStore.goals,
+      for (final g in GoalsStore.goals) g.name,
       for (final g in widget.path.goals)
         if (!identical(g, currentGoal)) g.name,
     ];
@@ -594,6 +600,46 @@ class _GoalsTreeState extends State<GoalsTree> {
     int waypointIndex,
     Waypoint waypoint,
   ) {
+    final headingItems = <DropdownMenuItem<String>>[
+      for (final strat in HeadingStratsStore.headingStrats)
+        DropdownMenuItem(
+          value: strat.name,
+          child: Text(strat.name),
+        ),
+    ];
+    if (waypoint.headingStratName != null &&
+        waypoint.headingStratName!.isNotEmpty &&
+        !HeadingStratsStore.headingStrats
+            .any((s) => s.name == waypoint.headingStratName)) {
+      headingItems.insert(
+        0,
+        DropdownMenuItem(
+          value: waypoint.headingStratName,
+          child: Text('Unknown (${waypoint.headingStratName})'),
+        ),
+      );
+    }
+
+    final controllerItems = <DropdownMenuItem<String>>[
+      for (final setting in ControllerSettingsStore.settings)
+        DropdownMenuItem(
+          value: setting.name,
+          child: Text(setting.name),
+        ),
+    ];
+    if (waypoint.controllerSettingName != null &&
+        waypoint.controllerSettingName!.isNotEmpty &&
+        !ControllerSettingsStore.settings
+            .any((s) => s.name == waypoint.controllerSettingName)) {
+      controllerItems.insert(
+        0,
+        DropdownMenuItem(
+          value: waypoint.controllerSettingName,
+          child: Text('Unknown (${waypoint.controllerSettingName})'),
+        ),
+      );
+    }
+
     return TreeCardNode(
       key: ObjectKey(waypoint),
       elevation: 0,
@@ -646,32 +692,31 @@ class _GoalsTreeState extends State<GoalsTree> {
         _buildWaypointDropdownRow(
           label: 'Heading Strat',
           value: waypoint.headingStratName,
-          items: [
-            for (final strat in HeadingStratsStore.settings)
-              DropdownMenuItem(
-                value: strat.name,
-                child: Text(strat.name),
-              ),
-          ],
+          items: headingItems,
           onChanged: waypoint.isLocked
               ? null
               : (value) => _updateWaypoint(
                     waypoint,
                     () => waypoint.headingStratName = value,
                   ),
-          onGearPressed: () async {
+            onGearPressed: () async {
             final updatedStrats =
-                await Navigator.of(context).push<List<HeadingStrat>>(
+                await Navigator.of(context).push<List<String>>(
               MaterialPageRoute(
                 builder: (context) => HeadingStratsPage(
-                  headingStrats: HeadingStratsStore.settings,
+                  strats: HeadingStratsStore.headingStrats
+                      .map((s) => s.name)
+                      .toList(),
                 ),
               ),
             );
             if (updatedStrats != null) {
               setState(() {
-                HeadingStratsStore.setSettings(updatedStrats);
+                HeadingStratsStore.setHeadingStrats(
+                  updatedStrats.map((name) => NamedItem(name: name)).toList(),
+                );
               });
+              widget.onHeadingStratsChanged?.call();
               widget.onPathChanged?.call();
             }
           },
@@ -680,13 +725,7 @@ class _GoalsTreeState extends State<GoalsTree> {
         _buildWaypointDropdownRow(
           label: 'Controller Setting',
           value: waypoint.controllerSettingName,
-          items: [
-            for (final setting in ControllerSettingsStore.settings)
-              DropdownMenuItem(
-                value: setting.name,
-                child: Text(setting.name),
-              ),
-          ],
+          items: controllerItems,
           onChanged: waypoint.isLocked
               ? null
               : (value) => _updateWaypoint(
@@ -695,32 +734,23 @@ class _GoalsTreeState extends State<GoalsTree> {
                   ),
           onGearPressed: () async {
             final updatedSettings =
-                await Navigator.of(context).push<List<ControllerSetting>>(
+                await Navigator.of(context).push<List<String>>(
               MaterialPageRoute(
                 builder: (context) => ControllerSettingsPage(
-                  controllerSettings: ControllerSettingsStore.settings,
+                  settings: ControllerSettingsStore.settings
+                      .map((s) => s.name)
+                      .toList(),
                 ),
               ),
             );
             if (updatedSettings != null) {
               setState(() {
-                ControllerSettingsStore.setSettings(updatedSettings);
+                ControllerSettingsStore.setSettings(
+                  updatedSettings.map((name) => NamedItem(name: name)).toList(),
+                );
               });
               widget.onControllerSettingsChanged?.call();
-            }
-            final updatedStrats =
-                await Navigator.of(context).push<List<HeadingStrat>>(
-              MaterialPageRoute(
-                builder: (context) => HeadingStratsPage(
-                  headingStrats: HeadingStratsStore.settings,
-                ),
-              ),
-            );
-            if (updatedStrats != null) {
-              setState(() {
-                HeadingStratsStore.setSettings(updatedStrats);
-              });
-              widget.onHeadingStratsChanged?.call();
+              widget.onPathChanged?.call();
             }
           },
           gearTooltip: 'Edit Controller Settings',
@@ -762,9 +792,7 @@ class _GoalsTreeState extends State<GoalsTree> {
         Align(
           alignment: Alignment.centerRight,
           child: IconButton(
-            tooltip: waypoint.isLocked
-                ? 'Unlock Waypoint'
-                : 'Lock Waypoint',
+            tooltip: waypoint.isLocked ? 'Unlock Waypoint' : 'Lock Waypoint',
             onPressed: () => _updateWaypoint(
               waypoint,
               () => waypoint.isLocked = !waypoint.isLocked,

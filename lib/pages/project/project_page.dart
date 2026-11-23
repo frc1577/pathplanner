@@ -1,16 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 
-import 'package:collection/collection.dart';
 import 'package:file/file.dart';
 import 'package:flutter/material.dart';
 import 'package:multi_split_view/multi_split_view.dart';
 import 'package:path/path.dart';
-import 'package:pathplanner/namedObjects/command.dart';
-import 'package:pathplanner/namedObjects/named_command.dart';
-import 'package:pathplanner/pages/path_editor_page.dart';
+import 'package:pathplanner/pages/goal_editor_page.dart';
 import 'package:pathplanner/pages/project/project_item_card.dart';
 import 'package:pathplanner/path/goal.dart';
-import 'package:pathplanner/path/pathplanner_path.dart';
 import 'package:pathplanner/path/goal_picker.dart';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/services/pplib_telemetry.dart';
@@ -22,17 +19,81 @@ import 'package:pathplanner/widgets/field_image.dart';
 import 'package:pathplanner/widgets/renamable_title.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:undo/undo.dart';
-import 'package:watcher/watcher.dart';
+
+class _GoalEntry {
+  Goal goal;
+  String? folder;
+  DateTime lastModified;
+
+  _GoalEntry({
+    required this.goal,
+    this.folder,
+    DateTime? lastModified,
+  }) : lastModified = lastModified ?? DateTime.now();
+
+  String get name => goal.name;
+  set name(String value) => goal.name = value;
+
+  Map<String, dynamic> toFileJson() => {
+        ...goal.toJson(),
+        'folder': folder,
+      };
+
+  factory _GoalEntry.fromFileJson(
+    Map<String, dynamic> json,
+    DateTime lastModified,
+  ) {
+    return _GoalEntry(
+      goal: Goal.fromJson(json),
+      folder: json['folder'] as String?,
+      lastModified: lastModified,
+    );
+  }
+}
+
+class _GoalPickerEntry {
+  String name;
+  GoalPicker picker;
+  String? folder;
+  DateTime lastModified;
+
+  _GoalPickerEntry({
+    required this.name,
+    required this.picker,
+    this.folder,
+    DateTime? lastModified,
+  }) : lastModified = lastModified ?? DateTime.now();
+
+  Map<String, dynamic> toFileJson() => {
+        'name': name,
+        'folder': folder,
+        ...picker.toJson(),
+      };
+
+  factory _GoalPickerEntry.fromFileJson(
+    Map<String, dynamic> json,
+    String fallbackName,
+    DateTime lastModified,
+  ) {
+    return _GoalPickerEntry(
+      name: (json['name'] as String?)?.isNotEmpty == true
+          ? json['name'] as String
+          : fallbackName,
+      picker: GoalPicker.fromJson(json),
+      folder: json['folder'] as String?,
+      lastModified: lastModified,
+    );
+  }
+}
 
 class ProjectPage extends StatefulWidget {
   static Set<String> events = {};
-  // Holds a reference to the active ProjectPage state so other widgets can
-  // query the currently loaded paths (used for linking/locking behavior).
   static _ProjectPageState? _instance;
 
-  /// Returns the list of currently loaded paths, or an empty list if the
-  /// ProjectPage is not initialized.
-  static List<PathPlannerPath> get allPaths => _instance?._paths ?? [];
+  static List<Goal> get allGoals =>
+      _instance?._goals.map((e) => e.goal).toList() ?? [];
+  static List<GoalPicker> get allGoalPickers =>
+      _instance?._goalPickers.map((e) => e.picker).toList() ?? [];
 
   final SharedPreferences prefs;
   final FieldImage fieldImage;
@@ -48,7 +109,6 @@ class ProjectPage extends StatefulWidget {
   final bool simulatePath;
   final bool watchChorDir;
 
-  // Stupid workaround to get when settings are updated
   static bool settingsUpdated = false;
 
   const ProjectPage({
@@ -74,198 +134,229 @@ class ProjectPage extends StatefulWidget {
 
 class _ProjectPageState extends State<ProjectPage> {
   final MultiSplitViewController _controller = MultiSplitViewController();
-  List<PathPlannerPath> _paths = [];
-  List<String> _pathFolders = [];
-  List<String> _autoFolders = [];
-  late Directory _pathsDirectory;
-  late Directory _autosDirectory;
-  late Directory _choreoDirectory;
-  late String _pathSortValue;
-  late String _autoSortValue;
-  late bool _pathsCompact;
-  late bool _autosCompact;
-  late int _pathGridCount;
-  late int _autosGridCount;
-  DirectoryWatcher? _chorWatcher;
-  StreamSubscription<WatchEvent>? _chorWatcherSub;
 
-  String _pathSearchQuery = '';
-  String _autoSearchQuery = '';
+  // Left side: Goal tab | Right side: GoalPicker tab
+  List<_GoalEntry> _goals = [];
+  List<_GoalPickerEntry> _goalPickers = [];
 
-  late TextEditingController _pathSearchController;
-  late TextEditingController _autoSearchController;
+  List<String> _goalFolders = [];
+  List<String> _goalPickerFolders = [];
+
+  late Directory _goalsDirectory;
+  late Directory _goalPickersDirectory;
+
+  late String _goalSortValue;
+  late String _goalPickerSortValue;
+  late bool _goalsCompact;
+  late bool _goalPickersCompact;
+  late int _goalGridCount;
+  late int _goalPickerGridCount;
+
+  String _goalSearchQuery = '';
+  String _goalPickerSearchQuery = '';
+
+  late TextEditingController _goalSearchController;
+  late TextEditingController _goalPickerSearchController;
 
   bool _loading = true;
 
-  String? _pathFolder;
-  String? _autoFolder;
-  bool _inChoreoFolder = false;
-
-  final GlobalKey _addAutoKey = GlobalKey();
+  String? _goalFolder;
+  String? _goalPickerFolder;
 
   FileSystem get fs => widget.fs;
 
   @override
   void initState() {
     super.initState();
-
-    // Register this state instance so other parts of the app can access
-    // the loaded paths when needed (e.g., locking linked waypoints across
-    // multiple paths).
     ProjectPage._instance = this;
 
-    _pathSearchController = TextEditingController();
-    _autoSearchController = TextEditingController();
+    _goalSearchController = TextEditingController();
+    _goalPickerSearchController = TextEditingController();
 
     double leftWeight = widget.prefs.getDouble(PrefsKeys.projectLeftWeight) ??
         Defaults.projectLeftWeight;
     _controller.areas = [
-      Area(
-        weight: leftWeight,
-        minimalWeight: 0.33,
-      ),
-      Area(
-        weight: 1.0 - leftWeight,
-        minimalWeight: 0.33,
-      ),
+      Area(weight: leftWeight, minimalWeight: 0.33),
+      Area(weight: 1.0 - leftWeight, minimalWeight: 0.33),
     ];
 
-    _pathSortValue = widget.prefs.getString(PrefsKeys.pathSortOption) ??
+    _goalSortValue = widget.prefs.getString(PrefsKeys.pathSortOption) ??
         Defaults.pathSortOption;
-    _autoSortValue = widget.prefs.getString(PrefsKeys.autoSortOption) ??
+    _goalPickerSortValue = widget.prefs.getString(PrefsKeys.autoSortOption) ??
         Defaults.autoSortOption;
-    _pathsCompact = widget.prefs.getBool(PrefsKeys.pathsCompactView) ??
+    _goalsCompact = widget.prefs.getBool(PrefsKeys.pathsCompactView) ??
         Defaults.pathsCompactView;
-    _autosCompact = widget.prefs.getBool(PrefsKeys.autosCompactView) ??
+    _goalPickersCompact = widget.prefs.getBool(PrefsKeys.autosCompactView) ??
         Defaults.autosCompactView;
 
-    _pathGridCount = _getCrossAxisCountForWeight(leftWeight);
-    _autosGridCount = _getCrossAxisCountForWeight(1.0 - leftWeight);
+    _goalGridCount = _getCrossAxisCountForWeight(leftWeight);
+    _goalPickerGridCount = _getCrossAxisCountForWeight(1.0 - leftWeight);
 
-    _pathFolders = widget.prefs.getStringList(PrefsKeys.pathFolders) ??
+    _goalFolders = widget.prefs.getStringList(PrefsKeys.pathFolders) ??
         Defaults.pathFolders;
-    _autoFolders = widget.prefs.getStringList(PrefsKeys.autoFolders) ??
+    _goalPickerFolders = widget.prefs.getStringList(PrefsKeys.autoFolders) ??
         Defaults.autoFolders;
-
-    // Set up choreo directory watcher
-    if (widget.watchChorDir) {
-      widget.choreoDirectory.exists().then((value) {
-        if (value) {
-          _chorWatcher = DirectoryWatcher(widget.choreoDirectory.path,
-              pollingDelay: const Duration(seconds: 1));
-
-          Timer? loadTimer;
-
-          _chorWatcherSub = _chorWatcher!.events.listen((event) {
-            loadTimer?.cancel();
-            loadTimer = Timer(const Duration(milliseconds: 500), () {
-              _load();
-              if (mounted) {
-                if (Navigator.of(this.context).canPop()) {
-                  // We might have a path or auto open, close it
-                  Navigator.of(this.context).pop();
-                }
-
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                    const SnackBar(content: Text('Reloaded Choreo paths')));
-              }
-            });
-          });
-        }
-      });
-    }
 
     _load();
   }
 
   @override
   void dispose() {
-    _chorWatcherSub?.cancel();
-
-    _pathSearchController.dispose();
-    _autoSearchController.dispose();
-    // Clear the global instance reference.
+    _goalSearchController.dispose();
+    _goalPickerSearchController.dispose();
     if (ProjectPage._instance == this) ProjectPage._instance = null;
-
     super.dispose();
   }
 
-  void _load() async {
-    // Make sure dirs exist
-    _pathsDirectory =
-        fs.directory(join(widget.pathplannerDirectory.path, 'paths'));
-    _pathsDirectory.createSync(recursive: true);
-    _autosDirectory =
-        fs.directory(join(widget.pathplannerDirectory.path, 'autos'));
-    _autosDirectory.createSync(recursive: true);
-    _choreoDirectory = fs.directory(widget.choreoDirectory);
+  // ===========================================================================
+  // DISK PERSISTENCE
+  // ===========================================================================
 
-    var paths =
-        await PathPlannerPath.loadAllPathsInDir(_pathsDirectory.path, fs);
+  File _goalFile(String name) =>
+      fs.file(join(_goalsDirectory.path, '$name.goal'));
 
-    List<String> allPathNames = [];
-    for (PathPlannerPath path in paths) {
-      allPathNames.add(path.name);
+  File _goalPickerFile(String name) =>
+      fs.file(join(_goalPickersDirectory.path, '$name.goalpicker'));
+
+  void _saveGoal(_GoalEntry entry) {
+    entry.lastModified = DateTime.now();
+    final file = _goalFile(entry.name);
+    file.createSync(recursive: true);
+    file.writeAsStringSync(
+      const JsonEncoder.withIndent('  ').convert(entry.toFileJson()),
+    );
+  }
+
+  void _deleteGoalFile(String name) {
+    final file = _goalFile(name);
+    if (file.existsSync()) {
+      file.deleteSync();
     }
+  }
 
+  void _saveGoalPicker(_GoalPickerEntry entry) {
+    entry.lastModified = DateTime.now();
+    final file = _goalPickerFile(entry.name);
+    file.createSync(recursive: true);
+    file.writeAsStringSync(
+      const JsonEncoder.withIndent('  ').convert(entry.toFileJson()),
+    );
+  }
 
-    for (int i = 0; i < paths.length; i++) {
-      if (!_pathFolders.contains(paths[i].folder)) {
-        paths[i].folder = null;
+  void _deleteGoalPickerFile(String name) {
+    final file = _goalPickerFile(name);
+    if (file.existsSync()) {
+      file.deleteSync();
+    }
+  }
+
+  Future<void> _load() async {
+    _goalsDirectory =
+        fs.directory(join(widget.pathplannerDirectory.path, 'goals'));
+    _goalsDirectory.createSync(recursive: true);
+
+    _goalPickersDirectory =
+        fs.directory(join(widget.pathplannerDirectory.path, 'goalPickers'));
+    _goalPickersDirectory.createSync(recursive: true);
+
+    final List<_GoalEntry> loadedGoals = [];
+    await for (final entity in _goalsDirectory.list()) {
+      if (entity is File && entity.path.endsWith('.goal')) {
+        try {
+          final raw = await entity.readAsString();
+          final jsonMap = jsonDecode(raw) as Map<String, dynamic>;
+          final fallbackName = basenameWithoutExtension(entity.path);
+          if ((jsonMap['name'] as String?)?.isNotEmpty != true) {
+            jsonMap['name'] = fallbackName;
+          }
+          final entry = _GoalEntry.fromFileJson(
+            jsonMap,
+            entity.lastModifiedSync(),
+          );
+          if (!_goalFolders.contains(entry.folder)) {
+            entry.folder = null;
+          }
+          loadedGoals.add(entry);
+        } catch (_) {
+          // Skip malformed goal files
+        }
       }
     }
 
-    if (!mounted) {
-      return;
+    final List<_GoalPickerEntry> loadedGoalPickers = [];
+    await for (final entity in _goalPickersDirectory.list()) {
+      if (entity is File && entity.path.endsWith('.goalpicker')) {
+        try {
+          final raw = await entity.readAsString();
+          final jsonMap = jsonDecode(raw) as Map<String, dynamic>;
+          final entry = _GoalPickerEntry.fromFileJson(
+            jsonMap,
+            basenameWithoutExtension(entity.path),
+            entity.lastModifiedSync(),
+          );
+          if (!_goalPickerFolders.contains(entry.folder)) {
+            entry.folder = null;
+          }
+          loadedGoalPickers.add(entry);
+        } catch (_) {
+          // Skip malformed goalPicker files
+        }
+      }
     }
+
+    if (!mounted) return;
 
     setState(() {
-      _paths = paths;
-      _pathFolder = null;
-      _autoFolder = null;
-      _inChoreoFolder = false;
+      _goals = loadedGoals;
+      _goalPickers = loadedGoalPickers;
+      _goalFolder = null;
+      _goalPickerFolder = null;
 
-      if (_paths.isEmpty) {
-        _paths.add(GoalPicker(
-          name: 'Example Path',
-          startPose: const Pose2d(Translation2d(2.0, 7.0), Rotation2d()),
-          goals: [
-            Goal(waypoints: [
+      if (_goals.isEmpty) {
+        final defaultGoal = _GoalEntry(
+          goal: Goal(
+            name: 'Example Goal',
+            waypoints: [
               Waypoint(anchor: const Translation2d(4.0, 6.0)),
-            ]),
-          ],
-        ));
+            ],
+          ),
+        );
+        _goals.add(defaultGoal);
+        _saveGoal(defaultGoal);
       }
 
-      _sortPaths(_pathSortValue);
+      if (_goalPickers.isEmpty) {
+        final defaultPicker = _GoalPickerEntry(
+          name: 'Example GoalPicker',
+          picker: GoalPicker(
+            startPose: const Pose2d(Translation2d(2.0, 7.0), Rotation2d()),
+            goals: [
+              _goals.first.goal.clone(),
+            ],
+          ),
+        );
+        _goalPickers.add(defaultPicker);
+        _saveGoalPicker(defaultPicker);
+      }
 
+      _sortItems();
       _loading = false;
     });
   }
+
+  // ===========================================================================
+  // BUILD
+  // ===========================================================================
 
   @override
   Widget build(BuildContext context) {
     ColorScheme colorScheme = Theme.of(context).colorScheme;
 
-    // Update _pathSortValue from shared preferences
-    _pathSortValue = widget.prefs.getString(PrefsKeys.pathSortOption) ??
-        Defaults.pathSortOption;
-
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
-    // Stupid workaround but it works
     if (ProjectPage.settingsUpdated) {
-
-      for (PathPlannerPath path in _paths) {
-        if (path.useDefaultConstraints) {
-          path.generateAndSavePath();
-        }
-      }
-
       ProjectPage.settingsUpdated = false;
     }
 
@@ -285,17 +376,17 @@ class _ProjectPageState extends State<ProjectPage> {
               controller: _controller,
               onWeightChange: () {
                 setState(() {
-                  _pathGridCount =
+                  _goalGridCount =
                       _getCrossAxisCountForWeight(_controller.areas[0].weight!);
-                  _autosGridCount = _getCrossAxisCountForWeight(
+                  _goalPickerGridCount = _getCrossAxisCountForWeight(
                       1.0 - _controller.areas[0].weight!);
                 });
                 widget.prefs.setDouble(PrefsKeys.projectLeftWeight,
                     _controller.areas[0].weight ?? Defaults.projectLeftWeight);
               },
               children: [
-                _buildPathsGrid(context),
-                _buildAutosGrid(context),
+                _buildGoalsGrid(context),
+                _buildGoalPickersGrid(context),
               ],
             ),
           ),
@@ -313,71 +404,52 @@ class _ProjectPageState extends State<ProjectPage> {
                 context: context,
                 builder: (BuildContext context) => ManagementDialog(
                   onEventRenamed: (String oldName, String newName) {
-                    setState(() {
-                      for (PathPlannerPath path in _paths) {
-                        path.generateAndSavePath();
-                      }
-                    });
+                    setState(() {});
                   },
                   onEventDeleted: (String name) {
-                    setState(() {
-                      for (PathPlannerPath path in _paths) {
-                        path.generateAndSavePath();
-                      }
-                    });
+                    setState(() {});
                   },
                   onLinkedRenamed: (String oldName, String newName) {
                     setState(() {
                       Pose2d? pose = Waypoint.linked.remove(oldName);
-
                       if (pose != null) {
                         Waypoint.linked[newName] = pose;
-
-                        for (PathPlannerPath path in _paths) {
-                          bool changed = false;
-
-                          for (Waypoint w in path.waypoints) {
-                            if (w.linkedName == oldName) {
-                              w.linkedName = newName;
-                              changed = true;
-                            }
-                          }
-
-                          if (changed) {
-                            path.generateAndSavePath();
-                          }
-                        }
+                        _syncLinkedWaypoints();
                       }
                     });
                   },
                   onLinkedDeleted: (String name) {
                     setState(() {
                       Waypoint.linked.remove(name);
-
-                      for (PathPlannerPath path in _paths) {
+                      for (final entry in _goals) {
                         bool changed = false;
-
-                        for (Waypoint w in path.waypoints) {
+                        for (final w in entry.goal.waypoints) {
                           if (w.linkedName == name) {
                             w.linkedName = null;
                             changed = true;
                           }
                         }
-
-                        if (changed) {
-                          path.generateAndSavePath();
+                        if (changed) _saveGoal(entry);
+                      }
+                      for (final gpEntry in _goalPickers) {
+                        bool changed = false;
+                        for (final g in gpEntry.picker.goals) {
+                          for (final w in g.waypoints) {
+                            if (w.linkedName == name) {
+                              w.linkedName = null;
+                              changed = true;
+                            }
+                          }
                         }
+                        if (changed) _saveGoalPicker(gpEntry);
                       }
                     });
                   },
                 ),
               ),
-              // Dumb hack to get an elevation surface tint
               child: Stack(
                 children: [
-                  Container(
-                    color: colorScheme.surfaceTint.withAlpha(30),
-                  ),
+                  Container(color: colorScheme.surfaceTint.withAlpha(30)),
                   const Center(child: Icon(Icons.edit_note_rounded)),
                 ],
               ),
@@ -388,143 +460,45 @@ class _ProjectPageState extends State<ProjectPage> {
     );
   }
 
-
-  Widget _buildPathsGrid(BuildContext context) {
-    ColorScheme colorScheme = Theme.of(context).colorScheme;
-
-    if (_inChoreoFolder) {
-      return Padding(
-        padding: const EdgeInsets.only(left: 8.0, bottom: 8.0),
-        child: Card(
-          elevation: 0.0,
-          margin: const EdgeInsets.all(0),
-          color: colorScheme.surface,
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildOptionsRow(
-                  sortValue: _pathSortValue,
-                  viewValue: _pathsCompact,
-                  onSortChanged: (value) async {
-                    await widget.prefs
-                        .setString(PrefsKeys.pathSortOption, value);
-                    setState(() {
-                      _pathSortValue = value;
-                      _sortPaths(_pathSortValue);
-                    });
-                  },
-                  onViewChanged: (value) {
-                    widget.prefs.setBool(PrefsKeys.pathsCompactView, value);
-                    setState(() {
-                      _pathsCompact = value;
-                    });
-                  },
-                  onSearchChanged: (value) {
-                    setState(() {
-                      _pathSearchQuery = value;
-                    });
-                  },
-                  searchController: _pathSearchController,
-                  onAddFolder: () {
-                    String folderName = 'New Folder';
-                    while (_pathFolders.contains(folderName)) {
-                      folderName = 'New $folderName';
-                    }
-
-                    setState(() {
-                      _pathFolders.add(folderName);
-                      _sortPaths(_pathSortValue);
-                    });
-                    widget.prefs
-                        .setStringList(PrefsKeys.pathFolders, _pathFolders);
-                    widget.onFoldersChanged?.call();
-                  },
-                  onAddItem: () {
-                    List<String> pathNames = [];
-                    for (PathPlannerPath path in _paths) {
-                      pathNames.add(path.name);
-                    }
-                    String pathName = 'New Path';
-                    while (pathNames.contains(pathName)) {
-                      pathName = 'New $pathName';
-                    }
-
-                    setState(() {
-                      _paths.add(GoalPicker(
-                        pathDir: _pathsDirectory.path,
-                        name: pathName,
-                        fs: fs,
-                        startPose: const Pose2d(
-                            Translation2d(2.0, 7.0), Rotation2d()),
-                        goals: [
-                          Goal(waypoints: [
-                            Waypoint(anchor: const Translation2d(4.0, 6.0)),
-                          ]),
-                        ],
-                        folder: _pathFolder,
-                      ));
-                      _sortPaths(_pathSortValue);
-                    });
-                  },
-                  isPathsView: true,
-                ),
-                GridView.count(
-                  crossAxisCount: _pathGridCount,
-                  childAspectRatio: 5.5,
-                  shrinkWrap: true,
-                  children: [
-                    Card(
-                      elevation: 2,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () {
-                          setState(() {
-                            _inChoreoFolder = false;
-                          });
-                        },
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8.0),
-                          child: Row(
-                            children: [
-                              Icon(Icons.drive_file_move_rtl_outlined),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    'Root Folder',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: GridView.count(
-                    crossAxisCount:
-                        _pathsCompact ? _pathGridCount + 1 : _pathGridCount,
-                    childAspectRatio: _pathsCompact ? 2.5 : 1.55,
-                    children: [
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+  void _syncLinkedWaypoints() {
+    for (final entry in _goals) {
+      bool changed = false;
+      for (final w in entry.goal.waypoints) {
+        if (w.linkedName != null && Waypoint.linked.containsKey(w.linkedName!)) {
+          final link = Waypoint.linked[w.linkedName!]!;
+          if (link.translation.getDistance(w.anchor) >= 0.01) {
+            w.move(link.translation.x, link.translation.y);
+            changed = true;
+          }
+        }
+      }
+      if (changed) _saveGoal(entry);
     }
+
+    for (final gpEntry in _goalPickers) {
+      bool changed = false;
+      for (final g in gpEntry.picker.goals) {
+        for (final w in g.waypoints) {
+          if (w.linkedName != null &&
+              Waypoint.linked.containsKey(w.linkedName!)) {
+            final link = Waypoint.linked[w.linkedName!]!;
+            if (link.translation.getDistance(w.anchor) >= 0.01) {
+              w.move(link.translation.x, link.translation.y);
+              changed = true;
+            }
+          }
+        }
+      }
+      if (changed) _saveGoalPicker(gpEntry);
+    }
+  }
+
+  // ===========================================================================
+  // LEFT PANE: GOAL TAB
+  // ===========================================================================
+
+  Widget _buildGoalsGrid(BuildContext context) {
+    ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.only(left: 8.0, top: 8.0),
@@ -538,285 +512,97 @@ class _ProjectPageState extends State<ProjectPage> {
             children: [
               const SizedBox(height: 8),
               _buildOptionsRow(
-                sortValue: _pathSortValue,
-                viewValue: _pathsCompact,
+                searchHint: 'Search for Goals...',
+                addTooltip: 'Add new goal',
+                sortValue: _goalSortValue,
+                viewValue: _goalsCompact,
                 onSortChanged: (value) {
                   widget.prefs.setString(PrefsKeys.pathSortOption, value);
                   setState(() {
-                    _pathSortValue = value;
-                    _sortPaths(_pathSortValue);
+                    _goalSortValue = value;
+                    _sortItems();
                   });
                 },
                 onViewChanged: (value) {
                   widget.prefs.setBool(PrefsKeys.pathsCompactView, value);
                   setState(() {
-                    _pathsCompact = value;
+                    _goalsCompact = value;
                   });
                 },
                 onSearchChanged: (value) {
                   setState(() {
-                    _pathSearchQuery = value;
+                    _goalSearchQuery = value;
                   });
                 },
-                searchController: _pathSearchController,
+                searchController: _goalSearchController,
                 onAddFolder: () {
                   String folderName = 'New Folder';
-                  while (_pathFolders.contains(folderName)) {
+                  while (_goalFolders.contains(folderName)) {
                     folderName = 'New $folderName';
                   }
-
                   setState(() {
-                    _pathFolders.add(folderName);
-                    _sortPaths(_pathSortValue);
+                    _goalFolders.add(folderName);
+                    _sortItems();
                   });
                   widget.prefs
-                      .setStringList(PrefsKeys.pathFolders, _pathFolders);
+                      .setStringList(PrefsKeys.pathFolders, _goalFolders);
                   widget.onFoldersChanged?.call();
                 },
-                onAddItem: () {
-                  List<String> pathNames = [];
-                  for (PathPlannerPath path in _paths) {
-                    pathNames.add(path.name);
-                  }
-                  String pathName = 'New Path';
-                  while (pathNames.contains(pathName)) {
-                    pathName = 'New $pathName';
-                  }
-
-                  setState(() {
-                    _paths.add(GoalPicker(
-                      pathDir: _pathsDirectory.path,
-                      name: pathName,
-                      fs: fs,
-                      startPose: const Pose2d(
-                          Translation2d(2.0, 7.0), Rotation2d()),
-                      goals: [
-                        Goal(waypoints: [
-                          Waypoint(anchor: const Translation2d(4.0, 6.0)),
-                        ]),
-                      ],
-                      folder: _pathFolder,
-                    ));
-                    _sortPaths(_pathSortValue);
-                  });
-                },
-                isPathsView: true,
+                onAddItem: _createNewGoal,
+                isLeftTab: true,
               ),
               Expanded(
                 child: ListView(
                   shrinkWrap: true,
                   children: [
-                    ConditionalWidget(
-                      condition: _pathFolder == null,
-                      falseChild: GridView.count(
-                        crossAxisCount: _pathGridCount,
-                        childAspectRatio: 5.5,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                          DragTarget<PathPlannerPath>(
-                            onAcceptWithDetails: (details) {
-                              setState(() {
-                                details.data.folder = null;
-                                details.data.generateAndSavePath();
-                              });
-                            },
-                            builder: (context, candidates, rejects) {
-                              ColorScheme colorScheme =
-                                  Theme.of(context).colorScheme;
-                              return Card(
-                                elevation: 2,
-                                color: candidates.isNotEmpty
-                                    ? colorScheme.primary
-                                    : colorScheme.surface,
-                                surfaceTintColor: colorScheme.surfaceTint,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(12),
-                                  onTap: () {
-                                    setState(() {
-                                      _pathFolder = null;
-                                    });
-                                  },
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8.0),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.drive_file_move_rtl_outlined,
-                                          color: candidates.isNotEmpty
-                                              ? colorScheme.onPrimary
-                                              : null,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            alignment: Alignment.centerLeft,
-                                            child: Text(
-                                              'Root Folder',
-                                              style: TextStyle(
-                                                fontSize: 20,
-                                                color: candidates.isNotEmpty
-                                                    ? colorScheme.onPrimary
-                                                    : null,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                      trueChild: GridView.count(
-                        crossAxisCount: _pathGridCount,
-                        childAspectRatio: 5.5,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                          for (int i = 0; i < _pathFolders.length; i++)
-                            DragTarget<PathPlannerPath>(
-                              onAcceptWithDetails: (details) {
-                                setState(() {
-                                  details.data.folder = _pathFolders[i];
-                                  details.data.generateAndSavePath();
-                                });
-                              },
-                              builder: (context, candidates, rejects) {
-                                ColorScheme colorScheme =
-                                    Theme.of(context).colorScheme;
-                                return Card(
-                                  elevation: 2,
-                                  color: candidates.isNotEmpty
-                                      ? colorScheme.primary
-                                      : colorScheme.surface,
-                                  surfaceTintColor: colorScheme.surfaceTint,
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(12),
-                                    onTap: () {
-                                      setState(() {
-                                        _pathFolder = _pathFolders[i];
-                                      });
-                                    },
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8.0),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.folder_outlined,
-                                            color: candidates.isNotEmpty
-                                                ? colorScheme.onPrimary
-                                                : null,
-                                          ),
-                                          Expanded(
-                                            child: FittedBox(
-                                              fit: BoxFit.scaleDown,
-                                              alignment: Alignment.centerLeft,
-                                              child: RenamableTitle(
-                                                title: _pathFolders[i],
-                                                textStyle: TextStyle(
-                                                  fontSize: 20,
-                                                  color: candidates.isNotEmpty
-                                                      ? colorScheme.onPrimary
-                                                      : null,
-                                                ),
-                                                onRename: (newName) {
-                                                  if (newName !=
-                                                      _pathFolders[i]) {
-                                                    if (_pathFolders
-                                                        .contains(newName)) {
-                                                      showDialog(
-                                                          context: context,
-                                                          builder: (BuildContext
-                                                              context) {
-                                                            ColorScheme
-                                                                colorScheme =
-                                                                Theme.of(
-                                                                        context)
-                                                                    .colorScheme;
-                                                            return AlertDialog(
-                                                              backgroundColor:
-                                                                  colorScheme
-                                                                      .surface,
-                                                              surfaceTintColor:
-                                                                  colorScheme
-                                                                      .surfaceTint,
-                                                              title: const Text(
-                                                                  'Unable to Rename'),
-                                                              content: Text(
-                                                                  'The folder "$newName" already exists'),
-                                                              actions: [
-                                                                TextButton(
-                                                                  onPressed:
-                                                                      Navigator.of(
-                                                                              context)
-                                                                          .pop,
-                                                                  child:
-                                                                      const Text(
-                                                                          'OK'),
-                                                                ),
-                                                              ],
-                                                            );
-                                                          });
-                                                    } else {
-                                                      setState(() {
-                                                        for (PathPlannerPath path
-                                                            in _paths) {
-                                                          if (path.folder ==
-                                                              _pathFolders[i]) {
-                                                            path.folder =
-                                                                newName;
-                                                            path.generateAndSavePath();
-                                                          }
-                                                        }
-                                                        _pathFolders[i] =
-                                                            newName;
-                                                      });
-                                                      widget.prefs
-                                                          .setStringList(
-                                                              PrefsKeys
-                                                                  .pathFolders,
-                                                              _pathFolders);
-                                                      widget.onFoldersChanged
-                                                          ?.call();
-                                                    }
-                                                  }
-                                                },
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                        ],
-                      ),
+                    _buildFolderHeader<_GoalEntry>(
+                      currentFolder: _goalFolder,
+                      folders: _goalFolders,
+                      gridCount: _goalGridCount,
+                      onSelectRoot: () => setState(() => _goalFolder = null),
+                      onSelectFolder: (folder) =>
+                          setState(() => _goalFolder = folder),
+                      onMoveItemToFolder: (entry, targetFolder) {
+                        setState(() {
+                          entry.folder = targetFolder;
+                          _saveGoal(entry);
+                        });
+                      },
+                      onRenameFolder: (index, newName) {
+                        if (newName == _goalFolders[index]) return;
+                        if (_goalFolders.contains(newName)) {
+                          _showDuplicateFolderDialog(context, newName);
+                          return;
+                        }
+                        setState(() {
+                          for (final entry in _goals) {
+                            if (entry.folder == _goalFolders[index]) {
+                              entry.folder = newName;
+                              _saveGoal(entry);
+                            }
+                          }
+                          _goalFolders[index] = newName;
+                        });
+                        widget.prefs
+                            .setStringList(PrefsKeys.pathFolders, _goalFolders);
+                        widget.onFoldersChanged?.call();
+                      },
                     ),
-                    if (_pathFolders.isNotEmpty)
-                      const SizedBox(height: 8),
+                    if (_goalFolders.isNotEmpty) const SizedBox(height: 8),
                     GridView.count(
                       crossAxisCount:
-                          _pathsCompact ? _pathGridCount + 1 : _pathGridCount,
-                      childAspectRatio: _pathsCompact ? 2.5 : 1.55,
+                          _goalsCompact ? _goalGridCount + 1 : _goalGridCount,
+                      childAspectRatio: _goalsCompact ? 2.5 : 1.55,
                       physics: const NeverScrollableScrollPhysics(),
                       shrinkWrap: true,
                       children: [
-                        for (int i = 0; i < _paths.length; i++)
-                          if (_paths[i].folder == _pathFolder &&
-                              _paths[i]
+                        for (int i = 0; i < _goals.length; i++)
+                          if (_goals[i].folder == _goalFolder &&
+                              _goals[i]
                                   .name
                                   .toLowerCase()
-                                  .contains(_pathSearchQuery.toLowerCase()))
-                            _buildPathCard(i, context),
+                                  .contains(_goalSearchQuery.toLowerCase()))
+                            _buildGoalCard(i, context),
                       ],
                     ),
                   ],
@@ -829,180 +615,143 @@ class _ProjectPageState extends State<ProjectPage> {
     );
   }
 
-  Widget _buildPathCard(int i, BuildContext context) {
-    final pathCard = ProjectItemCard(
-      name: _paths[i].name,
-      compact: _pathsCompact,
+  Widget _buildGoalCard(int i, BuildContext context) {
+    final entry = _goals[i];
+
+    final card = ProjectItemCard(
+      name: entry.name,
+      compact: _goalsCompact,
       fieldImage: widget.fieldImage,
-      paths: [_paths[i].pathPositions],
-      warningMessage: _paths[i].hasEmptyNamedCommand()
-          ? 'Contains a NamedCommand that does not have a command selected'
-          : null,
+      paths: [
+        entry.goal.waypoints.map((w) => w.anchor).toList(),
+      ],
       onDuplicated: () {
-        List<String> pathNames = [];
-        for (PathPlannerPath path in _paths) {
-          pathNames.add(path.name);
-        }
-        String pathName = 'Copy of ${_paths[i].name}';
-        while (pathNames.contains(pathName)) {
-          pathName = 'Copy of $pathName';
+        final existingNames = _goals.map((e) => e.name).toSet();
+        String newName = 'Copy of ${entry.name}';
+        while (existingNames.contains(newName)) {
+          newName = 'Copy of $newName';
         }
 
+        final clonedGoal = entry.goal.clone()..name = newName;
+        final duplicated = _GoalEntry(
+          goal: clonedGoal,
+          folder: entry.folder,
+        );
+
         setState(() {
-          _paths.add(_paths[i].duplicate(pathName));
-          _sortPaths(_pathSortValue);
+          _goals.add(duplicated);
+          _saveGoal(duplicated);
+          _sortItems();
         });
       },
       onDeleted: () {
-        _paths[i].deletePath();
+        _deleteGoalFile(entry.name);
         setState(() {
-          _paths.removeAt(i);
+          _goals.removeAt(i);
         });
-
-        List<String> allPathNames = _paths.map((e) => e.name).toList();
       },
-      onRenamed: (value) => _renamePath(_paths[i], value, context),
-      onOpened: () => _openPath(_paths[i]),
+      onRenamed: (value) => _renameGoal(entry, value, context),
+      onOpened: () => _openGoal(entry),
     );
 
     return LayoutBuilder(builder: (context, constraints) {
-      return Draggable<PathPlannerPath>(
-        data: _paths[i],
+      return Draggable<_GoalEntry>(
+        data: entry,
         feedback: SizedBox(
           width: constraints.maxWidth,
           height: constraints.maxHeight,
-          child: Opacity(
-            opacity: 0.8,
-            child: pathCard,
-          ),
+          child: Opacity(opacity: 0.8, child: card),
         ),
         childWhenDragging: Container(),
-        child: pathCard,
+        child: card,
       );
     });
   }
 
+  void _createNewGoal() {
+    final existingNames = _goals.map((e) => e.name).toSet();
+    String name = 'New Goal';
+    while (existingNames.contains(name)) {
+      name = 'New $name';
+    }
 
-  void _openPath(PathPlannerPath path) async {
+    final entry = _GoalEntry(
+      goal: Goal(
+        name: name,
+        waypoints: [
+          Waypoint(anchor: const Translation2d(4.0, 6.0)),
+        ],
+      ),
+      folder: _goalFolder,
+    );
+
+    setState(() {
+      _goals.add(entry);
+      _saveGoal(entry);
+      _sortItems();
+    });
+  }
+
+  void _renameGoal(_GoalEntry entry, String newName, BuildContext context) {
+    final existingNames = _goals.map((e) => e.name).toSet();
+    if (existingNames.contains(newName)) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          ColorScheme colorScheme = Theme.of(context).colorScheme;
+          return AlertDialog(
+            backgroundColor: colorScheme.surface,
+            surfaceTintColor: colorScheme.surfaceTint,
+            title: const Text('Unable to Rename'),
+            content: Text('The file "$newName.goal" already exists'),
+            actions: [
+              TextButton(
+                onPressed: Navigator.of(context).pop,
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      final oldName = entry.name;
+      setState(() {
+        _deleteGoalFile(oldName);
+        entry.name = newName;
+        _saveGoal(entry);
+        _sortItems();
+      });
+    }
+  }
+
+void _openGoal(_GoalEntry entry) async {
     await Navigator.push(
       this.context,
       MaterialPageRoute(
-        builder: (context) => PathEditorPage(
+        builder: (context) => GoalEditorPage(
           prefs: widget.prefs,
-          path: path,
+          goal: entry.goal,
           fieldImage: widget.fieldImage,
           undoStack: widget.undoStack,
-          onRenamed: (value) => _renamePath(path, value, context),
           shortcuts: widget.shortcuts,
-          telemetry: widget.telemetry,
-          hotReload: widget.hotReload,
-          simulatePath: widget.simulatePath,
-          onControllerSettingsChanged: widget.onProjectSettingsChanged,
-          onPathChanged: () {
-            // Update the linked rotation for the start/end states
-            if (path.waypoints.first.linkedName != null) {
-              Waypoint.linked[path.waypoints.first.linkedName!] = Pose2d(
-                  path.waypoints.first.anchor,
-                  path.idealStartingState.rotation);
-            }
-            if (path.waypoints.last.linkedName != null) {
-              Waypoint.linked[path.waypoints.last.linkedName!] = Pose2d(
-                  path.waypoints.last.anchor, path.goalEndState.rotation);
-            }
-
-            // Make sure all paths with linked waypoints are updated
-            for (PathPlannerPath p in _paths) {
-              bool changed = false;
-
-              for (int i = 0; i < p.waypoints.length; i++) {
-                Waypoint w = p.waypoints[i];
-                if (w.linkedName != null &&
-                    Waypoint.linked.containsKey(w.linkedName!)) {
-                  Pose2d link = Waypoint.linked[w.linkedName!]!;
-
-                  if (link.translation.getDistance(w.anchor) >= 0.01) {
-                    w.move(link.translation.x, link.translation.y);
-                    changed = true;
-                  }
-
-                  if (i == 0 &&
-                      (link.rotation - p.idealStartingState.rotation)
-                              .degrees
-                              .abs() >
-                          0.01) {
-                    p.idealStartingState.rotation = link.rotation;
-                    changed = true;
-                  } else if (i == p.waypoints.length - 1 &&
-                      (link.rotation - p.goalEndState.rotation).degrees.abs() >
-                          0.01) {
-                    p.goalEndState.rotation = link.rotation;
-                    changed = true;
-                  }
-                }
-              }
-
-              if (changed) {
-                p.generateAndSavePath();
-
-                if (widget.hotReload) {
-                  widget.telemetry?.hotReloadPath(p);
-                }
-              }
-            }
+          onRenamed: (value) => _renameGoal(entry, value, context),
+          onGoalChanged: () {
+            _saveGoal(entry);
           },
         ),
       ),
     );
 
     setState(() {
-      _sortPaths(_pathSortValue);
+      _sortItems();
     });
   }
 
-  void _renamePath(PathPlannerPath path, String newName, BuildContext context) {
-    List<String> pathNames = [];
-    for (PathPlannerPath p in _paths) {
-      pathNames.add(p.name);
-    }
+  // ===========================================================================
+  // RIGHT PANE: GOALPICKER TAB
+  // ===========================================================================
 
-    if (pathNames.contains(newName)) {
-      showDialog(
-          context: context,
-          builder: (BuildContext context) {
-            ColorScheme colorScheme = Theme.of(context).colorScheme;
-            return AlertDialog(
-              backgroundColor: colorScheme.surface,
-              surfaceTintColor: colorScheme.surfaceTint,
-              title: const Text('Unable to Rename'),
-              content: Text('The file "$newName.path" already exists'),
-              actions: [
-                TextButton(
-                  onPressed: Navigator.of(context).pop,
-                  child: const Text('OK'),
-                ),
-              ],
-            );
-          });
-    } else {
-      String oldName = path.name;
-      setState(() {
-        path.renamePath(newName);
-        _sortPaths(_pathSortValue);
-      });
-    }
-  }
-
-  int _getCrossAxisCountForWeight(double weight) {
-    if (weight < 0.4) {
-      return 1;
-    } else if (weight < 0.6) {
-      return 2;
-    } else {
-      return 3;
-    }
-  }
-
-  Widget _buildAutosGrid(BuildContext context) {
+  Widget _buildGoalPickersGrid(BuildContext context) {
     ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
@@ -1017,72 +766,100 @@ class _ProjectPageState extends State<ProjectPage> {
             children: [
               const SizedBox(height: 8),
               _buildOptionsRow(
-                sortValue: _autoSortValue,
-                viewValue: _autosCompact,
+                searchHint: 'Search for GoalPickers...',
+                addTooltip: 'Add new GoalPicker',
+                sortValue: _goalPickerSortValue,
+                viewValue: _goalPickersCompact,
                 onSortChanged: (value) {
                   widget.prefs.setString(PrefsKeys.autoSortOption, value);
                   setState(() {
-                    _autoSortValue = value;
+                    _goalPickerSortValue = value;
+                    _sortItems();
                   });
                 },
                 onViewChanged: (value) {
                   widget.prefs.setBool(PrefsKeys.autosCompactView, value);
                   setState(() {
-                    _autosCompact = value;
+                    _goalPickersCompact = value;
                   });
                 },
                 onSearchChanged: (value) {
                   setState(() {
-                    _autoSearchQuery = value;
+                    _goalPickerSearchQuery = value;
                   });
                 },
-                searchController: _autoSearchController,
+                searchController: _goalPickerSearchController,
                 onAddFolder: () {
                   String folderName = 'New Folder';
-                  while (_autoFolders.contains(folderName)) {
+                  while (_goalPickerFolders.contains(folderName)) {
                     folderName = 'New $folderName';
                   }
-
                   setState(() {
-                    _autoFolders.add(folderName);
+                    _goalPickerFolders.add(folderName);
+                    _sortItems();
                   });
                   widget.prefs
-                      .setStringList(PrefsKeys.autoFolders, _autoFolders);
+                      .setStringList(PrefsKeys.autoFolders, _goalPickerFolders);
                   widget.onFoldersChanged?.call();
                 },
-                onAddItem: (){  
-                    _createNewAuto();
-                },
-                isPathsView: false,
+                onAddItem: _createNewGoalPicker,
+                isLeftTab: false,
               ),
               Expanded(
                 child: ListView(
                   shrinkWrap: true,
                   children: [
-                    ConditionalWidget(
-                      condition: _autoFolder == null,
-                      falseChild: GridView.count(
-                        crossAxisCount: _autosGridCount,
-                        childAspectRatio: 5.5,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [                        ],
-                      ),
-                      trueChild: GridView.count(
-                        crossAxisCount: _autosGridCount,
-                        childAspectRatio: 5.5,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                          for (int i = 0; i < _autoFolders.length; i++)
-                    if (_autoFolders.isNotEmpty) const SizedBox(height: 8),
+                    _buildFolderHeader<_GoalPickerEntry>(
+                      currentFolder: _goalPickerFolder,
+                      folders: _goalPickerFolders,
+                      gridCount: _goalPickerGridCount,
+                      onSelectRoot: () =>
+                          setState(() => _goalPickerFolder = null),
+                      onSelectFolder: (folder) =>
+                          setState(() => _goalPickerFolder = folder),
+                      onMoveItemToFolder: (entry, targetFolder) {
+                        setState(() {
+                          entry.folder = targetFolder;
+                          _saveGoalPicker(entry);
+                        });
+                      },
+                      onRenameFolder: (index, newName) {
+                        if (newName == _goalPickerFolders[index]) return;
+                        if (_goalPickerFolders.contains(newName)) {
+                          _showDuplicateFolderDialog(context, newName);
+                          return;
+                        }
+                        setState(() {
+                          for (final entry in _goalPickers) {
+                            if (entry.folder == _goalPickerFolders[index]) {
+                              entry.folder = newName;
+                              _saveGoalPicker(entry);
+                            }
+                          }
+                          _goalPickerFolders[index] = newName;
+                        });
+                        widget.prefs.setStringList(
+                            PrefsKeys.autoFolders, _goalPickerFolders);
+                        widget.onFoldersChanged?.call();
+                      },
+                    ),
+                    if (_goalPickerFolders.isNotEmpty)
+                      const SizedBox(height: 8),
                     GridView.count(
-                      crossAxisCount:
-                          _autosCompact ? _autosGridCount + 1 : _autosGridCount,
-                      childAspectRatio: _autosCompact ? 2.5 : 1.55,
+                      crossAxisCount: _goalPickersCompact
+                          ? _goalPickerGridCount + 1
+                          : _goalPickerGridCount,
+                      childAspectRatio: _goalPickersCompact ? 2.5 : 1.55,
                       physics: const NeverScrollableScrollPhysics(),
                       shrinkWrap: true,
                       children: [
+                        for (int i = 0; i < _goalPickers.length; i++)
+                          if (_goalPickers[i].folder == _goalPickerFolder &&
+                              _goalPickers[i]
+                                  .name
+                                  .toLowerCase()
+                                  .contains(_goalPickerSearchQuery.toLowerCase()))
+                            _buildGoalPickerCard(i, context),
                       ],
                     ),
                   ],
@@ -1091,11 +868,300 @@ class _ProjectPageState extends State<ProjectPage> {
             ],
           ),
         ),
-      ],),
-    )));
+      ),
+    );
+  }
+
+  Widget _buildGoalPickerCard(int i, BuildContext context) {
+    final entry = _goalPickers[i];
+
+    // Preview startPose + each goal's waypoints on the field thumbnail
+    final previewPaths = <List<Translation2d>>[
+      for (final goal in entry.picker.goals)
+        [
+          entry.picker.startPose.translation,
+          ...goal.waypoints.map((w) => w.anchor),
+        ],
+    ];
+
+    final card = ProjectItemCard(
+      name: entry.name,
+      compact: _goalPickersCompact,
+      fieldImage: widget.fieldImage,
+      paths: previewPaths,
+      onDuplicated: () {
+        final existingNames = _goalPickers.map((e) => e.name).toSet();
+        String newName = 'Copy of ${entry.name}';
+        while (existingNames.contains(newName)) {
+          newName = 'Copy of $newName';
+        }
+
+        final duplicated = _GoalPickerEntry(
+          name: newName,
+          folder: entry.folder,
+          picker: GoalPicker(
+            startPose: entry.picker.startPose,
+            goals: [
+              for (final g in entry.picker.goals) g.clone(),
+            ],
+          ),
+        );
+
+        setState(() {
+          _goalPickers.add(duplicated);
+          _saveGoalPicker(duplicated);
+          _sortItems();
+        });
+      },
+      onDeleted: () {
+        _deleteGoalPickerFile(entry.name);
+        setState(() {
+          _goalPickers.removeAt(i);
+        });
+      },
+      onRenamed: (value) => _renameGoalPicker(entry, value, context),
+      onOpened: () => _openGoalPicker(entry),
+    );
+
+    return LayoutBuilder(builder: (context, constraints) {
+      return Draggable<_GoalPickerEntry>(
+        data: entry,
+        feedback: SizedBox(
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+          child: Opacity(opacity: 0.8, child: card),
+        ),
+        childWhenDragging: Container(),
+        child: card,
+      );
+    });
+  }
+
+  void _createNewGoalPicker() {
+    final existingNames = _goalPickers.map((e) => e.name).toSet();
+    String name = 'New GoalPicker';
+    while (existingNames.contains(name)) {
+      name = 'New $name';
+    }
+
+    final entry = _GoalPickerEntry(
+      name: name,
+      folder: _goalPickerFolder,
+      picker: GoalPicker(
+        startPose: const Pose2d(Translation2d(2.0, 7.0), Rotation2d()),
+        goals: [
+          Goal(
+            name: 'Goal 1',
+            waypoints: [
+              Waypoint(anchor: const Translation2d(4.0, 6.0)),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    setState(() {
+      _goalPickers.add(entry);
+      _saveGoalPicker(entry);
+      _sortItems();
+    });
+  }
+
+  void _renameGoalPicker(
+      _GoalPickerEntry entry, String newName, BuildContext context) {
+    final existingNames = _goalPickers.map((e) => e.name).toSet();
+
+    if (existingNames.contains(newName)) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          ColorScheme colorScheme = Theme.of(context).colorScheme;
+          return AlertDialog(
+            backgroundColor: colorScheme.surface,
+            surfaceTintColor: colorScheme.surfaceTint,
+            title: const Text('Unable to Rename'),
+            content: Text('The file "$newName.goalpicker" already exists'),
+            actions: [
+              TextButton(
+                onPressed: Navigator.of(context).pop,
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      final oldName = entry.name;
+      setState(() {
+        _deleteGoalPickerFile(oldName);
+        entry.name = newName;
+        _saveGoalPicker(entry);
+        _sortItems();
+      });
+    }
+  }
+
+  void _openGoalPicker(_GoalPickerEntry entry) async {
+    // TODO: Push your GoalPickerEditorPage here, and call _saveGoalPicker(entry) on changes:
+    // await Navigator.push(context, MaterialPageRoute(builder: (_) => GoalPickerEditorPage(goalPicker: entry.picker, ...)));
+    // _saveGoalPicker(entry);
+    // setState(() => _sortItems());
+  }
+
+  // ===========================================================================
+  // SHARED UI HELPERS
+  // ===========================================================================
+
+  Widget _buildFolderHeader<T extends Object>({
+    required String? currentFolder,
+    required List<String> folders,
+    required int gridCount,
+    required VoidCallback onSelectRoot,
+    required ValueChanged<String> onSelectFolder,
+    required void Function(T item, String? targetFolder) onMoveItemToFolder,
+    required void Function(int index, String newName) onRenameFolder,
+  }) {
+    return ConditionalWidget(
+      condition: currentFolder == null,
+      falseChild: GridView.count(
+        crossAxisCount: gridCount,
+        childAspectRatio: 5.5,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          DragTarget<T>(
+            onAcceptWithDetails: (details) =>
+                onMoveItemToFolder(details.data, null),
+            builder: (context, candidates, rejects) {
+              ColorScheme colorScheme = Theme.of(context).colorScheme;
+              return Card(
+                elevation: 2,
+                color: candidates.isNotEmpty
+                    ? colorScheme.primary
+                    : colorScheme.surface,
+                surfaceTintColor: colorScheme.surfaceTint,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: onSelectRoot,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.drive_file_move_rtl_outlined,
+                          color: candidates.isNotEmpty
+                              ? colorScheme.onPrimary
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Root Folder',
+                              style: TextStyle(
+                                fontSize: 20,
+                                color: candidates.isNotEmpty
+                                    ? colorScheme.onPrimary
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      trueChild: GridView.count(
+        crossAxisCount: gridCount,
+        childAspectRatio: 5.5,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          for (int i = 0; i < folders.length; i++)
+            DragTarget<T>(
+              onAcceptWithDetails: (details) =>
+                  onMoveItemToFolder(details.data, folders[i]),
+              builder: (context, candidates, rejects) {
+                ColorScheme colorScheme = Theme.of(context).colorScheme;
+                return Card(
+                  elevation: 2,
+                  color: candidates.isNotEmpty
+                      ? colorScheme.primary
+                      : colorScheme.surface,
+                  surfaceTintColor: colorScheme.surfaceTint,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => onSelectFolder(folders[i]),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.folder_outlined,
+                            color: candidates.isNotEmpty
+                                ? colorScheme.onPrimary
+                                : null,
+                          ),
+                          Expanded(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: RenamableTitle(
+                                title: folders[i],
+                                textStyle: TextStyle(
+                                  fontSize: 20,
+                                  color: candidates.isNotEmpty
+                                      ? colorScheme.onPrimary
+                                      : null,
+                                ),
+                                onRename: (newName) =>
+                                    onRenameFolder(i, newName),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showDuplicateFolderDialog(BuildContext context, String newName) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        ColorScheme colorScheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          backgroundColor: colorScheme.surface,
+          surfaceTintColor: colorScheme.surfaceTint,
+          title: const Text('Unable to Rename'),
+          content: Text('The folder "$newName" already exists'),
+          actions: [
+            TextButton(
+              onPressed: Navigator.of(context).pop,
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildOptionsRow({
+    required String searchHint,
+    required String addTooltip,
     required String sortValue,
     required bool viewValue,
     required ValueChanged<String> onSortChanged,
@@ -1104,305 +1170,199 @@ class _ProjectPageState extends State<ProjectPage> {
     required TextEditingController searchController,
     required VoidCallback onAddFolder,
     required VoidCallback onAddItem,
-    required bool isPathsView,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6.0),
-      child: Column(children: [
-        Row(
-          children: [
-            _buildViewButton(
-              viewValue: viewValue,
-              onViewChanged: onViewChanged,
-            ),
-            _buildSortButton(
-              sortValue: sortValue,
-              onSortChanged: onSortChanged,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildSearchBar(
-                isPathsView: isPathsView,
-                onChanged: onSearchChanged,
-                controller: searchController,
-              ),
-            ),
-            const SizedBox(width: 14),
-            _buildFolderButton(
-              isPathsView: isPathsView,
-              onAddFolder: onAddFolder,
-              onDeleteFolder: () {
-                showDialog(
-                  context: this.context,
-                  builder: (context) {
-                    ColorScheme colorScheme = Theme.of(context).colorScheme;
-                    return AlertDialog(
-                      backgroundColor: colorScheme.surface,
-                      surfaceTintColor: colorScheme.surfaceTint,
-                      title: const Text('Delete Folder'),
-                      content: SizedBox(
-                        width: 400,
-                        child: Text(
-                          'Are you sure you want to delete the folder "${isPathsView ? _pathFolder : _autoFolder}"?\n\nThis will also delete all ${isPathsView ? "paths" : "autos"} within the folder. This cannot be undone.',
-                        ),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: Navigator.of(context).pop,
-                          child: const Text('CANCEL'),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-
-                            if (isPathsView) {
-                              for (int p = 0; p < _paths.length; p++) {
-                                if (_paths[p].folder == _pathFolder) {
-                                  _paths[p].deletePath();
-                                }
-                              }
-
-                              setState(() {
-                                _paths.removeWhere(
-                                    (path) => path.folder == _pathFolder);
-                                _pathFolders.remove(_pathFolder);
-                                _pathFolder = null;
-                              });
-                              widget.prefs.setStringList(
-                                  PrefsKeys.pathFolders, _pathFolders);
-                            } else {
-
-                              setState(() {
-                                _autoFolders.remove(_autoFolder);
-                                _autoFolder = null;
-                              });
-                              widget.prefs.setStringList(
-                                  PrefsKeys.autoFolders, _autoFolders);
-                            }
-                            widget.onFoldersChanged?.call();
-                          },
-                          child: const Text('DELETE'),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-            ),
-            const SizedBox(width: 8),
-            _buildAddButton(
-              isPathsView: isPathsView,
-              onAddItem: onAddItem,
-            ),
-            const SizedBox(width: 8),
-          ],
-        ),
-        const SizedBox(height: 10),
-      ]),
-    );
-  }
-
-  Widget _buildViewButton({
-    required bool viewValue,
-    required ValueChanged<bool> onViewChanged,
-  }) {
-    return PopupMenuButton<bool>(
-      initialValue: viewValue,
-      tooltip: 'View options',
-      icon: Icon(viewValue ? Icons.view_list_rounded : Icons.grid_view_rounded),
-      itemBuilder: (context) => const [
-        PopupMenuItem(value: false, child: Text('Default')),
-        PopupMenuItem(value: true, child: Text('Compact')),
-      ],
-      onSelected: onViewChanged,
-    );
-  }
-
-  Widget _buildSortButton({
-    required String sortValue,
-    required ValueChanged<String> onSortChanged,
-  }) {
-    return PopupMenuButton<String>(
-      initialValue: sortValue,
-      tooltip: 'Sort options',
-      icon: const Icon(Icons.sort_rounded),
-      itemBuilder: (context) => _sortOptions(),
-      onSelected: onSortChanged,
-    );
-  }
-
-  Widget _buildFolderButton({
-    required bool isPathsView,
-    required VoidCallback onAddFolder,
-    required VoidCallback onDeleteFolder,
+    required bool isLeftTab,
   }) {
     final bool isRootFolder =
-        isPathsView ? _pathFolder == null : _autoFolder == null;
+        isLeftTab ? _goalFolder == null : _goalPickerFolder == null;
 
-    return IconButton.filledTonal(
-      icon: Icon(isRootFolder
-          ? Icons.create_new_folder_outlined
-          : Icons.delete_forever_rounded),
-      tooltip: isRootFolder
-          ? 'Add new folder'
-          : isPathsView
-              ? 'Delete path folder'
-              : 'Delete auto folder',
-      onPressed: () {
-        if (isRootFolder) {
-          onAddFolder();
-        } else {
-          onDeleteFolder();
-        }
-      },
-    );
-  }
-
-  Widget _buildAddButton({
-    required bool isPathsView,
-    required VoidCallback onAddItem,
-  }) {
-    if (!isPathsView) {
-      return Tooltip(
-        message: 'Add new auto',
-        waitDuration: const Duration(seconds: 1),
-        child: IconButton.filled(
-          key: _addAutoKey,
-          onPressed: () {
-              _createNewAuto();
-          },
-          icon: const Icon(Icons.add_rounded),
-        ),
-      );
-    } else {
-      return IconButton.filled(
-        tooltip: 'Add new path',
-        icon: const Icon(Icons.add_rounded),
-        onPressed: onAddItem,
-      );
-    }
-  }
-
-  void _createNewAuto({bool choreo = false}) {
-    List<String> autoNames = [];
-    String autoName = 'New Auto';
-    while (autoNames.contains(autoName)) {
-      autoName = 'New $autoName';
-    }
-
-    setState(() {
-    });
-  }
-
-  Widget _buildSearchBar({
-    required bool isPathsView,
-    required ValueChanged<String> onChanged,
-    required TextEditingController controller,
-  }) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        hintText: 'Search for ${isPathsView ? "Paths..." : "Autos..."}',
-        prefixIcon: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: Icon(Icons.search_rounded),
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-      ),
-      onChanged: (value) {
-        // Debounce the search to avoid freezing
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (value == controller.text) {
-            onChanged(value);
-          }
-        });
-      },
-    );
-  }
-
-  List<PathPlannerPath> _getPathsFromNames(List<String> names) {
-    List<PathPlannerPath> paths = [];
-    for (String name in names) {
-      List<PathPlannerPath> matched =
-          _paths.where((path) => path.name == name).toList();
-      if (matched.isNotEmpty) {
-        paths.add(matched[0]);
-      }
-    }
-    return paths;
-  }
-
-
-  void _renameAuto(int autoIdx, String newName, BuildContext context) {
-    List<String> autoNames = [];
-
-    if (autoNames.contains(newName)) {
-      showDialog(
-          context: context,
-          builder: (BuildContext context) {
-            ColorScheme colorScheme = Theme.of(context).colorScheme;
-            return AlertDialog(
-              backgroundColor: colorScheme.surface,
-              surfaceTintColor: colorScheme.surfaceTint,
-              title: const Text('Unable to Rename'),
-              content: Text('The file "$newName.auto" already exists'),
-              actions: [
-                TextButton(
-                  onPressed: Navigator.of(context).pop,
-                  child: const Text('OK'),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6.0),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              PopupMenuButton<bool>(
+                initialValue: viewValue,
+                tooltip: 'View options',
+                icon: Icon(viewValue
+                    ? Icons.view_list_rounded
+                    : Icons.grid_view_rounded),
+                itemBuilder: (context) => const [
+                  PopupMenuItem(value: false, child: Text('Default')),
+                  PopupMenuItem(value: true, child: Text('Compact')),
+                ],
+                onSelected: onViewChanged,
+              ),
+              PopupMenuButton<String>(
+                initialValue: sortValue,
+                tooltip: 'Sort options',
+                icon: const Icon(Icons.sort_rounded),
+                itemBuilder: (context) => _sortOptions(),
+                onSelected: onSortChanged,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: searchController,
+                  decoration: InputDecoration(
+                    hintText: searchHint,
+                    prefixIcon: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Icon(Icons.search_rounded),
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                  ),
+                  onChanged: (value) {
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      if (value == searchController.text) {
+                        onSearchChanged(value);
+                      }
+                    });
+                  },
                 ),
-              ],
-            );
-          });
-    } else {
-      setState(() {
-      });
-    }
+              ),
+              const SizedBox(width: 14),
+              IconButton.filledTonal(
+                icon: Icon(isRootFolder
+                    ? Icons.create_new_folder_outlined
+                    : Icons.delete_forever_rounded),
+                tooltip: isRootFolder
+                    ? 'Add new folder'
+                    : isLeftTab
+                        ? 'Delete goal folder'
+                        : 'Delete GoalPicker folder',
+                onPressed: () {
+                  if (isRootFolder) {
+                    onAddFolder();
+                  } else {
+                    _confirmDeleteFolder(isLeftTab: isLeftTab);
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              IconButton.filled(
+                tooltip: addTooltip,
+                icon: const Icon(Icons.add_rounded),
+                onPressed: onAddItem,
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+          const SizedBox(height: 10),
+        ],
+      ),
+    );
   }
 
-  void _sortPaths(String sortOption) {
-    // Get the latest sort option from shared preferences
-    String latestSortOption =
-        widget.prefs.getString(PrefsKeys.pathSortOption) ??
-            Defaults.pathSortOption;
+  void _confirmDeleteFolder({required bool isLeftTab}) {
+    final targetFolder = isLeftTab ? _goalFolder : _goalPickerFolder;
+    showDialog(
+      context: this.context,
+      builder: (context) {
+        ColorScheme colorScheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          backgroundColor: colorScheme.surface,
+          surfaceTintColor: colorScheme.surfaceTint,
+          title: const Text('Delete Folder'),
+          content: SizedBox(
+            width: 400,
+            child: Text(
+              'Are you sure you want to delete the folder "$targetFolder"?\n\nThis will also delete all ${isLeftTab ? "goals" : "GoalPickers"} within the folder. This cannot be undone.',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: Navigator.of(context).pop,
+              child: const Text('CANCEL'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                if (isLeftTab) {
+                  for (final entry in _goals) {
+                    if (entry.folder == _goalFolder) {
+                      _deleteGoalFile(entry.name);
+                    }
+                  }
+                  setState(() {
+                    _goals.removeWhere((e) => e.folder == _goalFolder);
+                    _goalFolders.remove(_goalFolder);
+                    _goalFolder = null;
+                  });
+                  widget.prefs
+                      .setStringList(PrefsKeys.pathFolders, _goalFolders);
+                } else {
+                  for (final entry in _goalPickers) {
+                    if (entry.folder == _goalPickerFolder) {
+                      _deleteGoalPickerFile(entry.name);
+                    }
+                  }
+                  setState(() {
+                    _goalPickers
+                        .removeWhere((e) => e.folder == _goalPickerFolder);
+                    _goalPickerFolders.remove(_goalPickerFolder);
+                    _goalPickerFolder = null;
+                  });
+                  widget.prefs
+                      .setStringList(PrefsKeys.autoFolders, _goalPickerFolders);
+                }
+                widget.onFoldersChanged?.call();
+              },
+              child: const Text('DELETE'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
-    switch (latestSortOption) {
+  int _getCrossAxisCountForWeight(double weight) {
+    if (weight < 0.4) return 1;
+    if (weight < 0.6) return 2;
+    return 3;
+  }
+
+  void _sortItems() {
+    switch (_goalSortValue) {
       case 'recent':
-        _paths.sort((a, b) => b.lastModified.compareTo(a.lastModified));
-        _pathFolders.sort((a, b) => a.compareTo(b));
+        _goals.sort((a, b) => b.lastModified.compareTo(a.lastModified));
+        _goalFolders.sort((a, b) => a.compareTo(b));
         break;
       case 'nameDesc':
-        _paths.sort((a, b) => b.name.compareTo(a.name));
-        _pathFolders.sort((a, b) => b.compareTo(a));
+        _goals.sort((a, b) => b.name.compareTo(a.name));
+        _goalFolders.sort((a, b) => b.compareTo(a));
         break;
       case 'nameAsc':
-        _paths.sort((a, b) => a.name.compareTo(b.name));
-        _pathFolders.sort((a, b) => a.compareTo(b));
+        _goals.sort((a, b) => a.name.compareTo(b.name));
+        _goalFolders.sort((a, b) => a.compareTo(b));
         break;
-      default:
-        throw FormatException('Invalid sort value', sortOption);
+    }
+
+    switch (_goalPickerSortValue) {
+      case 'recent':
+        _goalPickers.sort((a, b) => b.lastModified.compareTo(a.lastModified));
+        _goalPickerFolders.sort((a, b) => a.compareTo(b));
+        break;
+      case 'nameDesc':
+        _goalPickers.sort((a, b) => b.name.compareTo(a.name));
+        _goalPickerFolders.sort((a, b) => b.compareTo(a));
+        break;
+      case 'nameAsc':
+        _goalPickers.sort((a, b) => a.name.compareTo(b.name));
+        _goalPickerFolders.sort((a, b) => a.compareTo(b));
+        break;
     }
   }
-
 
   List<PopupMenuItem<String>> _sortOptions() {
     return const [
-      PopupMenuItem(
-        value: 'recent',
-        child: Text('Recent'),
-      ),
-      PopupMenuItem(
-        value: 'nameAsc',
-        child: Text('Name Ascending'),
-      ),
-      PopupMenuItem(
-        value: 'nameDesc',
-        child: Text('Name Descending'),
-      ),
+      PopupMenuItem(value: 'recent', child: Text('Recent')),
+      PopupMenuItem(value: 'nameAsc', child: Text('Name Ascending')),
+      PopupMenuItem(value: 'nameDesc', child: Text('Name Descending')),
     ];
   }
-
 }

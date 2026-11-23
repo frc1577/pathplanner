@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:nt4/nt4.dart';
-import 'package:pathplanner/auto/pathplanner_auto.dart';
-import 'package:pathplanner/path/pathplanner_path.dart';
+import 'package:pathplanner/path/goal.dart';
+import 'package:pathplanner/path/goal_picker.dart';
 import 'package:pathplanner/util/wpimath/geometry.dart';
 
 class PPLibTelemetry {
@@ -15,6 +15,8 @@ class PPLibTelemetry {
 
   late NT4Topic _hotReloadPathTopic;
   late NT4Topic _hotReloadAutoTopic;
+  late NT4Topic _hotReloadGoalTopic;
+  late NT4Topic _hotReloadGoalPickerTopic;
 
   bool _isConnected = false;
 
@@ -36,6 +38,10 @@ class PPLibTelemetry {
         '/PathPlanner/HotReload/hotReloadPath', NT4TypeStr.typeStr);
     _hotReloadAutoTopic = _client.publishNewTopic(
         '/PathPlanner/HotReload/hotReloadAuto', NT4TypeStr.typeStr);
+    _hotReloadGoalTopic = _client.publishNewTopic(
+        '/PathPlanner/HotReload/hotReloadGoal', NT4TypeStr.typeStr);
+    _hotReloadGoalPickerTopic = _client.publishNewTopic(
+        '/PathPlanner/HotReload/hotReloadGoalPicker', NT4TypeStr.typeStr);
   }
 
   void setServerAddress(String serverAddress) {
@@ -46,26 +52,23 @@ class PPLibTelemetry {
     return _client.serverBaseAddress;
   }
 
-  void hotReloadPath(PathPlannerPath path) {
-    String pathName = path.name;
 
+  void hotReloadGoal(Goal goal) {
     Map<String, dynamic> msgJson = {
-      'name': pathName,
-      'path': path.toJson(),
+      'name': goal.name,
+      'goal': goal.toJson(),
     };
 
-    _client.addSample(_hotReloadPathTopic, jsonEncode(msgJson));
+    _client.addSample(_hotReloadGoalTopic, jsonEncode(msgJson));
   }
 
-  void hotReloadAuto(PathPlannerAuto auto) {
-    String autoName = auto.name;
-
+  void hotReloadGoalPicker(String name, GoalPicker goalPicker) {
     Map<String, dynamic> msgJson = {
-      'name': autoName,
-      'auto': auto.toJson(),
+      'name': name,
+      'goalPicker': goalPicker.toJson(),
     };
 
-    _client.addSample(_hotReloadAutoTopic, jsonEncode(msgJson));
+    _client.addSample(_hotReloadGoalPickerTopic, jsonEncode(msgJson));
   }
 
   Stream<List<num>> velocitiesStream() {

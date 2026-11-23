@@ -257,6 +257,21 @@ class PathPainterUtil {
     return meters * fieldImage.pixelsPerMeter * scale;
   }
 
+  static Translation2d pixelOffsetToPoint(
+      Offset pixelOffset, double scale, FieldImage fieldImage) {
+    final ppm = fieldImage.pixelsPerMeter.toDouble();
+    final x = (pixelOffset.dx / scale) / ppm - fieldImage.marginMeters;
+    final y = ((fieldImage.defaultSize.height - (pixelOffset.dy / scale)) /
+            ppm) -
+        fieldImage.marginMeters;
+    return Translation2d(x, y);
+  }
+
+  static double pixelsToMeters(
+      double pixels, double scale, FieldImage fieldImage) {
+    return pixels / (fieldImage.pixelsPerMeter * scale);
+  }
+
   static double uiPointSizeToPixels(
       double size, double scale, FieldImage fieldImage) {
     // 3240 = width of field image size is based on

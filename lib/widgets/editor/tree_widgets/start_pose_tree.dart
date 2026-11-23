@@ -81,12 +81,10 @@ class StartPoseTree extends StatelessWidget {
       path.startPose,
       () {
         execute.call();
-        path.rebuildPath();
         onPathChanged?.call();
       },
       (oldValue) {
         path.startPose = oldValue;
-        path.rebuildPath();
         onPathChanged?.call();
       },
     ));

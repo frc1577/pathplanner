@@ -1,73 +1,40 @@
 import 'dart:convert';
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:pathplanner/path/choreo_path.dart';
+import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/robot_features/feature.dart';
 import 'package:pathplanner/trajectory/config.dart';
-import 'package:pathplanner/trajectory/trajectory.dart';
-import 'package:pathplanner/services/physics_sim_service.dart';
-import 'package:pathplanner/path/pathplanner_path.dart';
-import 'package:pathplanner/path/waypoint.dart';
+import 'package:pathplanner/util/path_painter_util.dart';
 import 'package:pathplanner/util/prefs.dart';
 import 'package:pathplanner/util/wpimath/geometry.dart';
 import 'package:pathplanner/widgets/field_image.dart';
-import 'package:pathplanner/util/path_painter_util.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PathPainter extends CustomPainter {
   final ColorScheme colorScheme;
-  final List<PathPlannerPath> paths;
-  final List<ChoreoPath> choreoPaths;
+  final List<Waypoint> waypoints;
   final FieldImage fieldImage;
   final bool simple;
-  final bool hideOtherPathsOnHover;
-  final String? hoveredPath;
   final int? hoveredWaypoint;
   final int? selectedWaypoint;
-  final int? hoveredZone;
-  final int? selectedZone;
-  final int? hoveredPointZone;
-  final int? selectedPointZone;
-  final int? hoveredRotTarget;
-  final int? selectedRotTarget;
-  final int? hoveredMarker;
-  final int? selectedMarker;
-  final PhysicsSimulationResult? simulatedPath;
   final SharedPreferences prefs;
-  final PathPlannerPath? optimizedPath;
 
   late final RobotConfig robotConfig;
   late final num robotRadius;
-  Animation<num>? previewTime;
   final List<Feature> robotFeatures = [];
 
   static double scale = 1;
 
   PathPainter({
     required this.colorScheme,
-    required this.paths,
-    this.choreoPaths = const [],
+    required this.waypoints,
     required this.fieldImage,
     this.simple = false,
-    this.hideOtherPathsOnHover = false,
-    this.hoveredPath,
     this.hoveredWaypoint,
     this.selectedWaypoint,
-    this.hoveredZone,
-    this.selectedZone,
-    this.hoveredPointZone,
-    this.selectedPointZone,
-    this.hoveredRotTarget,
-    this.selectedRotTarget,
-    this.hoveredMarker,
-    this.selectedMarker,
-    this.simulatedPath,
-    Animation<double>? animation,
     required this.prefs,
-    this.optimizedPath,
-  }) : super(repaint: animation) {
+  }) {
     robotConfig = RobotConfig.fromPrefs(prefs);
     robotRadius = sqrt((robotConfig.bumperSize.width *
                 robotConfig.bumperSize.width) +
@@ -82,11 +49,6 @@ class PathPainter extends CustomPainter {
         // Ignore and skip loading this feature
       }
     }
-
-    if (simulatedPath != null && animation != null) {
-      previewTime = Tween<num>(begin: 0, end: simulatedPath!.totalTimeSeconds)
-          .animate(animation);
-    }
   }
 
   @override
@@ -94,33 +56,41 @@ class PathPainter extends CustomPainter {
     scale = size.width / fieldImage.defaultSize.width;
 
     _paintGrid(
-        canvas, size, prefs.getBool(PrefsKeys.showGrid) ?? Defaults.showGrid);
-
-    for (int i = 0; i < paths.length; i++) {
-      if (hideOtherPathsOnHover &&
-          hoveredPath != null &&
-          hoveredPath != paths[i].name) {
-        continue;
-      }
-
-      if (!simple) {
-        _paintRadius(paths[i], canvas, scale);
-      }
-
-    _paintPathPoints(
-      paths[i],
       canvas,
-      (hoveredPath == paths[i].name)
-        ? Colors.orange
-        : colorScheme.secondary);
+      size,
+      prefs.getBool(PrefsKeys.showGrid) ?? Defaults.showGrid,
+    );
 
-      // Rotation target rendering removed
+    if (waypoints.isEmpty) return;
 
-    _paintMarkers(paths[i], canvas);
+    if (!simple) {
+      _paintRadius(canvas, scale);
+    }
 
-    // Paint start/end rotation outlines (keep these visible)
+    // Paint straight connecting lines between waypoints
+    if (waypoints.length > 1) {
+      final linePaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..color = colorScheme.secondary
+        ..strokeWidth = 2.0;
+
+      final path = Path();
+      final start = PathPainterUtil.pointToPixelOffset(
+          waypoints.first.anchor, scale, fieldImage);
+      path.moveTo(start.dx, start.dy);
+
+      for (int i = 1; i < waypoints.length; i++) {
+        final pos = PathPainterUtil.pointToPixelOffset(
+            waypoints[i].anchor, scale, fieldImage);
+        path.lineTo(pos.dx, pos.dy);
+      }
+
+      canvas.drawPath(path, linePaint);
+    }
+
+    // Paint start and end robot outlines
     PathPainterUtil.paintRobotOutline(
-      Pose2d(paths[i].waypoints.first.anchor, paths[i].idealStartingState.rotation),
+      Pose2d(waypoints.first.anchor, waypoints.first.holonomicAngle),
       fieldImage,
       robotConfig.bumperSize,
       robotConfig.bumperOffset,
@@ -128,434 +98,78 @@ class PathPainter extends CustomPainter {
       canvas,
       Colors.green.withAlpha(125),
       colorScheme.surfaceContainer,
-      robotFeatures);
-
-    PathPainterUtil.paintRobotOutline(
-      Pose2d(paths[i].waypoints[paths[i].waypoints.length - 1].anchor,
-        paths[i].goalEndState.rotation),
-      fieldImage,
-      robotConfig.bumperSize,
-      robotConfig.bumperOffset,
-      scale,
-      canvas,
-      Colors.red.withAlpha(125),
-      colorScheme.surfaceContainer,
-      robotFeatures);
-
-      // Respect user pref to hide points and tolerance circles while keeping
-      // robot and path rendering visible.
-      bool hidePoints = prefs.getBool(PrefsKeys.hidePointsAndTolerances) ??
-          Defaults.hidePointsAndTolerances;
-
-      if (!hidePoints) {
-        if (!simple) {
-          for (int w = 0; w < paths[i].waypoints.length; w++) {
-            _paintWaypoint(paths[i], canvas, scale, w);
-          }
-        } else {
-          _paintWaypoint(paths[i], canvas, scale, 0);
-          _paintWaypoint(paths[i], canvas, scale, paths[i].waypoints.length - 1);
-        }
-      }
-
-  // Point Towards Zones rendering removed
-    }
-
-    for (int i = 0; i < choreoPaths.length; i++) {
-      if (hideOtherPathsOnHover &&
-          hoveredPath != null &&
-          hoveredPath != choreoPaths[i].name) {
-        continue;
-      }
-
-      if (choreoPaths[i].trajectory.states.isEmpty) {
-        continue;
-      }
-
-      _paintTrajectory(
-          choreoPaths[i].trajectory,
-          canvas,
-          (hoveredPath == choreoPaths[i].name)
-              ? Colors.orange
-              : colorScheme.secondary);
-      _paintChoreoWaypoint(
-          choreoPaths[i].trajectory.states.first, canvas, Colors.green, scale);
-      _paintChoreoWaypoint(
-          choreoPaths[i].trajectory.states.last, canvas, Colors.red, scale);
-      _paintChoreoMarkers(choreoPaths[i], canvas);
-    }
-
-    if (optimizedPath != null) {
-      _paintPathPoints(optimizedPath!, canvas, Colors.deepPurpleAccent, 4.0);
-    }
-
-    for (int i = 1; i < paths.length; i++) {
-      // Paint warnings between breaks in paths
-      Translation2d prevPathEnd = paths[i - 1].pathPoints.last.position;
-      Translation2d pathStart = paths[i].pathPoints.first.position;
-
-      if (prevPathEnd.getDistance(pathStart) >= 0.25) {
-        _paintBreakWarning(prevPathEnd, pathStart, canvas, scale);
-      }
-    }
-
-    for (int i = 1; i < choreoPaths.length; i++) {
-      // Paint warnings between breaks in paths
-      Translation2d prevPathEnd =
-          choreoPaths[i - 1].trajectory.states.last.pose.translation;
-      Translation2d pathStart =
-          choreoPaths[i].trajectory.states.first.pose.translation;
-
-      if (prevPathEnd.getDistance(pathStart) >= 0.25) {
-        _paintBreakWarning(prevPathEnd, pathStart, canvas, scale);
-      }
-    }
-
-    if (simulatedPath != null) {
-      _paintGhostPath(simulatedPath!, canvas,
-          colorScheme.secondary.withAlpha(90));
-    }
-
-    if (prefs.getBool(PrefsKeys.showStates) ?? Defaults.showStates) {
-      _paintSimulationStates(simulatedPath, canvas);
-    }
-
-    if (previewTime != null) {
-    PhysicsSimState state = simulatedPath!.sample(previewTime!.value);
-
-    PathPainterUtil.paintRobotOutline(
-    state.pose,
-    fieldImage,
-    robotConfig.bumperSize,
-    robotConfig.bumperOffset,
-    scale,
-    canvas,
-    colorScheme.primary,
-    colorScheme.surfaceContainer,
-    robotFeatures,
-    showDetails: prefs.getBool(PrefsKeys.showRobotDetails) ??
-      Defaults.showRobotDetails,
+      robotFeatures,
     );
-    }
-  }
 
-  @override
-  bool shouldRepaint(PathPainter oldDelegate) {
-    return true; // This will just be repainted all the time anyways from the animation
-  }
-
-  void _paintSimulationStates(
-      PhysicsSimulationResult? result, Canvas canvas) {
-    if (result == null || result.states.isEmpty) {
-      return;
-    }
-
-    var paint = Paint()..style = PaintingStyle.fill;
-
-    num maxVel = 0.0;
-    for (PhysicsSimState s in result.states) {
-      maxVel = max(maxVel, s.velocity.abs());
-    }
-
-    for (PhysicsSimState s in result.states) {
-      num normalizedVel = maxVel == 0.0 ? 0.0 : (s.velocity.abs() / maxVel);
-      normalizedVel = normalizedVel.clamp(0.0, 1.0);
-
-      if (normalizedVel <= 0.33) {
-        paint.color =
-            Color.lerp(Colors.red, Colors.orange, normalizedVel / 0.33)!;
-      } else if (normalizedVel <= 0.67) {
-        paint.color = Color.lerp(
-            Colors.orange, Colors.yellow, (normalizedVel - 0.33) / 0.34)!;
-      } else {
-        paint.color = Color.lerp(
-            Colors.yellow, Colors.green, (normalizedVel - 0.67) / 0.33)!;
-      }
-      Offset pos = PathPainterUtil.pointToPixelOffset(
-          s.pose.translation, scale, fieldImage);
-      canvas.drawCircle(pos, 3.0, paint);
-    }
-  }
-
-  void _paintGhostPath(
-      PhysicsSimulationResult result, Canvas canvas, Color baseColor) {
-    if (result.states.isEmpty) {
-      return;
-    }
-
-    var paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..color = baseColor
-      ..strokeWidth = 2;
-
-    Path p = Path();
-
-    Offset start = PathPainterUtil.pointToPixelOffset(
-        result.states.first.pose.translation, scale, fieldImage);
-    p.moveTo(start.dx, start.dy);
-
-    for (int i = 1; i < result.states.length; i++) {
-      Offset pos = PathPainterUtil.pointToPixelOffset(
-          result.states[i].pose.translation, scale, fieldImage);
-      p.lineTo(pos.dx, pos.dy);
-    }
-
-    canvas.drawPath(p, paint);
-  }
-
-  void _paintTrajectory(
-      PathPlannerTrajectory traj, Canvas canvas, Color baseColor) {
-    var paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..color = baseColor
-      ..strokeWidth = 2;
-
-    Path p = Path();
-
-    Offset start = PathPainterUtil.pointToPixelOffset(
-        traj.states.first.pose.translation, scale, fieldImage);
-    p.moveTo(start.dx, start.dy);
-
-    for (int i = 1; i < traj.states.length; i++) {
-      Offset pos = PathPainterUtil.pointToPixelOffset(
-          traj.states[i].pose.translation, scale, fieldImage);
-
-      p.lineTo(pos.dx, pos.dy);
-    }
-
-    canvas.drawPath(p, paint);
-  }
-
-  void _paintChoreoWaypoint(
-      TrajectoryState state, Canvas canvas, Color color, double scale) {
-    var paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = color;
-
-  // draw anchor point (respect hidePoints pref)
-  bool hidePoints = prefs.getBool(PrefsKeys.hidePointsAndTolerances) ??
-    Defaults.hidePointsAndTolerances;
-  if (!hidePoints) {
-    paint.style = PaintingStyle.fill;
-    canvas.drawCircle(
-      PathPainterUtil.pointToPixelOffset(
-        state.pose.translation, scale, fieldImage),
-      PathPainterUtil.uiPointSizeToPixels(25, scale, fieldImage),
-      paint);
-    paint.style = PaintingStyle.stroke;
-    paint.color = colorScheme.surfaceContainer;
-    canvas.drawCircle(
-      PathPainterUtil.pointToPixelOffset(
-        state.pose.translation, scale, fieldImage),
-      PathPainterUtil.uiPointSizeToPixels(25, scale, fieldImage),
-      paint);
-  }
-
-    // Draw robot
-    PathPainterUtil.paintRobotOutline(
-        state.pose,
+    if (waypoints.length > 1) {
+      PathPainterUtil.paintRobotOutline(
+        Pose2d(waypoints.last.anchor, waypoints.last.holonomicAngle),
         fieldImage,
         robotConfig.bumperSize,
         robotConfig.bumperOffset,
         scale,
         canvas,
-        color.withAlpha(125),
+        Colors.red.withAlpha(125),
         colorScheme.surfaceContainer,
-        robotFeatures);
-  }
-
-  void _paintPathPoints(PathPlannerPath path, Canvas canvas, Color baseColor,
-      [double strokeWidth = 2.0]) {
-    var paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..color = baseColor
-      ..strokeWidth = strokeWidth;
-
-    Path p = Path();
-
-    Offset start = PathPainterUtil.pointToPixelOffset(
-        path.pathPoints[0].position, scale, fieldImage);
-    p.moveTo(start.dx, start.dy);
-
-    for (int i = 1; i < path.pathPoints.length; i++) {
-      Offset pos = PathPainterUtil.pointToPixelOffset(
-          path.pathPoints[i].position, scale, fieldImage);
-
-      p.lineTo(pos.dx, pos.dy);
+        robotFeatures,
+      );
     }
 
-    canvas.drawPath(p, paint);
+    // Paint robot outline for selected intermediate waypoint
+    if (!simple &&
+        selectedWaypoint != null &&
+        selectedWaypoint! > 0 &&
+        selectedWaypoint! < waypoints.length - 1) {
+      final sel = waypoints[selectedWaypoint!];
+      PathPainterUtil.paintRobotOutline(
+        Pose2d(sel.anchor, sel.holonomicAngle),
+        fieldImage,
+        robotConfig.bumperSize,
+        robotConfig.bumperOffset,
+        scale,
+        canvas,
+        Colors.orange.withAlpha(125),
+        colorScheme.surfaceContainer,
+        robotFeatures,
+      );
+    }
 
-  // Constraint zones, point-towards zones and rotation target highlights removed
+    bool hidePoints = prefs.getBool(PrefsKeys.hidePointsAndTolerances) ??
+        Defaults.hidePointsAndTolerances;
 
-    if (selectedMarker != null && path.eventMarkers[selectedMarker!].isZoned) {
-      paint.color = Colors.orange;
-      paint.strokeWidth = 6;
-      p.reset();
-
-      num startPos = path.eventMarkers[selectedMarker!].waypointRelativePos;
-      num endPos = path.eventMarkers[selectedMarker!].endWaypointRelativePos!;
-
-      Offset start = PathPainterUtil.pointToPixelOffset(
-          path.samplePath(startPos), scale, fieldImage);
-      p.moveTo(start.dx, start.dy);
-
-      for (num t = startPos + 0.05; t <= endPos; t += 0.05) {
-        Offset pos = PathPainterUtil.pointToPixelOffset(
-            path.samplePath(t), scale, fieldImage);
-
-        p.lineTo(pos.dx, pos.dy);
+    if (!hidePoints) {
+      for (int w = 0; w < waypoints.length; w++) {
+        _paintWaypoint(canvas, scale, w);
       }
-      Offset end = PathPainterUtil.pointToPixelOffset(
-          path.samplePath(endPos), scale, fieldImage);
-      p.lineTo(end.dx, end.dy);
-
-      canvas.drawPath(p, paint);
-    }
-
-    if (hoveredMarker != null &&
-        hoveredMarker != selectedMarker &&
-        path.eventMarkers[hoveredMarker!].isZoned) {
-      paint.color = Colors.deepPurpleAccent;
-      paint.strokeWidth = 6;
-      p.reset();
-
-      num startPos = path.eventMarkers[hoveredMarker!].waypointRelativePos;
-      num endPos = path.eventMarkers[hoveredMarker!].endWaypointRelativePos!;
-
-      Offset start = PathPainterUtil.pointToPixelOffset(
-          path.samplePath(startPos), scale, fieldImage);
-      p.moveTo(start.dx, start.dy);
-
-      for (num t = startPos + 0.05; t <= endPos; t += 0.05) {
-        Offset pos = PathPainterUtil.pointToPixelOffset(
-            path.samplePath(t), scale, fieldImage);
-
-        p.lineTo(pos.dx, pos.dy);
-      }
-      Offset end = PathPainterUtil.pointToPixelOffset(
-          path.samplePath(endPos), scale, fieldImage);
-      p.lineTo(end.dx, end.dy);
-
-      canvas.drawPath(p, paint);
     }
   }
 
-  void _paintMarkers(PathPlannerPath path, Canvas canvas) {
-    for (int i = 0; i < path.eventMarkers.length; i++) {
-      var position = path.samplePath(path.eventMarkers[i].waypointRelativePos);
+  @override
+  bool shouldRepaint(PathPainter oldDelegate) => true;
 
-      Color markerColor = Colors.grey[700]!;
-      Color markerStrokeColor = colorScheme.surfaceContainer;
-      if (selectedMarker == i) {
-        markerColor = Colors.orange;
-      } else if (hoveredMarker == i) {
-        markerColor = Colors.deepPurpleAccent;
-      }
-
-      Offset markerPos =
-          PathPainterUtil.pointToPixelOffset(position, scale, fieldImage);
-
-      PathPainterUtil.paintMarker(
-          canvas, markerPos, markerColor, markerStrokeColor);
-    }
-  }
-
-  void _paintChoreoMarkers(ChoreoPath path, Canvas canvas) {
-    for (num timestamp in path.eventMarkerTimes) {
-      TrajectoryState s = path.trajectory.sample(timestamp);
-      Offset markerPos = PathPainterUtil.pointToPixelOffset(
-          s.pose.translation, scale, fieldImage);
-
-      PathPainterUtil.paintMarker(
-          canvas, markerPos, Colors.grey[700]!, colorScheme.onSurface);
-    }
-  }
-
-  // Point Towards Zones and Rotation Target rendering removed
-
-  void _paintBreakWarning(Translation2d prevPathEnd, Translation2d pathStart,
-      Canvas canvas, double scale) {
-    var paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..color = Colors.yellow[800]!
-      ..strokeWidth = 3;
-
-    final p1 =
-        PathPainterUtil.pointToPixelOffset(prevPathEnd, scale, fieldImage);
-    final p2 = PathPainterUtil.pointToPixelOffset(pathStart, scale, fieldImage);
-    final distance = (p2 - p1).distance;
-    final normalizedPattern = [7, 5].map((width) => width / distance).toList();
-    final points = <Offset>[];
-    double t = 0.0;
-    int i = 0;
-    while (t < 1.0) {
-      points.add(Offset.lerp(p1, p2, t)!);
-      t += normalizedPattern[i++];
-      points.add(Offset.lerp(p1, p2, t.clamp(0.0, 1.0))!);
-      t += normalizedPattern[i++];
-      i %= normalizedPattern.length;
-    }
-    canvas.drawPoints(PointMode.lines, points, paint);
-
-    Offset middle = Offset.lerp(p1, p2, 0.5)!;
-
-    const IconData warningIcon = Icons.warning_rounded;
-
-    TextPainter textPainter = TextPainter(
-      textDirection: TextDirection.ltr,
-      text: TextSpan(
-        text: String.fromCharCode(warningIcon.codePoint),
-        style: TextStyle(
-          fontSize: 40,
-          color: Colors.yellow[700]!,
-          fontFamily: warningIcon.fontFamily,
-        ),
-      ),
-    );
-
-    TextPainter textStrokePainter = TextPainter(
-      textDirection: TextDirection.ltr,
-      text: TextSpan(
-        text: String.fromCharCode(warningIcon.codePoint),
-        style: TextStyle(
-          fontSize: 40,
-          fontFamily: warningIcon.fontFamily,
-          foreground: Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.5
-            ..color = colorScheme.surfaceContainer,
-        ),
-      ),
-    );
-
-    textPainter.layout();
-    textStrokePainter.layout();
-
-    textPainter.paint(canvas, middle - const Offset(20, 25));
-    textStrokePainter.paint(canvas, middle - const Offset(20, 25));
-  }
-
-  void _paintRadius(PathPlannerPath path, Canvas canvas, double scale) {
-    if (selectedWaypoint != null) {
-      var paint = Paint()
+  void _paintRadius(Canvas canvas, double scale) {
+    if (selectedWaypoint != null &&
+        selectedWaypoint! >= 0 &&
+        selectedWaypoint! < waypoints.length) {
+      final paint = Paint()
         ..style = PaintingStyle.stroke
         ..color = colorScheme.surfaceContainerHighest
         ..strokeWidth = 2;
 
       canvas.drawCircle(
-          PathPainterUtil.pointToPixelOffset(
-              path.waypoints[selectedWaypoint!].anchor, scale, fieldImage),
-          PathPainterUtil.metersToPixels(
-              robotRadius.toDouble(), scale, fieldImage),
-          paint);
+        PathPainterUtil.pointToPixelOffset(
+            waypoints[selectedWaypoint!].anchor, scale, fieldImage),
+        PathPainterUtil.metersToPixels(
+            robotRadius.toDouble(), scale, fieldImage),
+        paint,
+      );
     }
   }
 
-  void _paintWaypoint(
-      PathPlannerPath path, Canvas canvas, double scale, int waypointIdx) {
-    var paint = Paint()
+  void _paintWaypoint(Canvas canvas, double scale, int waypointIdx) {
+    final waypoint = waypoints[waypointIdx];
+
+    final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
@@ -567,37 +181,33 @@ class PathPainter extends CustomPainter {
       paint.color = Colors.grey[700]!;
     }
 
-    Waypoint waypoint = path.waypoints[waypointIdx];
-
-    bool hidePoints = prefs.getBool(PrefsKeys.hidePointsAndTolerances) ??
-        Defaults.hidePointsAndTolerances;
-
-    if (!simple && !hidePoints) {
+    if (!simple) {
       if (waypoint.tolerance > 0) {
         final tolerancePaint = Paint()
           ..style = PaintingStyle.stroke
           ..color = colorScheme.secondary.withAlpha(80)
           ..strokeWidth = 2;
         canvas.drawCircle(
-            PathPainterUtil.pointToPixelOffset(
-                waypoint.anchor, scale, fieldImage),
-            PathPainterUtil.metersToPixels(
-                waypoint.tolerance.toDouble(), scale, fieldImage),
-            tolerancePaint);
+          PathPainterUtil.pointToPixelOffset(
+              waypoint.anchor, scale, fieldImage),
+          PathPainterUtil.metersToPixels(
+              waypoint.tolerance.toDouble(), scale, fieldImage),
+          tolerancePaint,
+        );
       }
 
       // Draw heading handle line
       canvas.drawLine(
-          PathPainterUtil.pointToPixelOffset(
-              waypoint.anchor, scale, fieldImage),
-          PathPainterUtil.pointToPixelOffset(
-              waypoint.headingHandlePosition(), scale, fieldImage),
-          paint);
+        PathPainterUtil.pointToPixelOffset(waypoint.anchor, scale, fieldImage),
+        PathPainterUtil.pointToPixelOffset(
+            waypoint.headingHandlePosition(), scale, fieldImage),
+        paint,
+      );
     }
 
     if (waypointIdx == 0) {
       paint.color = Colors.green;
-    } else if (waypointIdx == path.waypoints.length - 1) {
+    } else if (waypointIdx == waypoints.length - 1) {
       paint.color = Colors.red;
     } else {
       paint.color = colorScheme.secondary;
@@ -609,24 +219,23 @@ class PathPainter extends CustomPainter {
       paint.color = Colors.deepPurpleAccent;
     }
 
-  // draw anchor point (respect hidePoints pref)
-  bool hidePoints2 = prefs.getBool(PrefsKeys.hidePointsAndTolerances) ??
-    Defaults.hidePointsAndTolerances;
-  if (!hidePoints2) {
+    // Draw anchor point
     paint.style = PaintingStyle.fill;
     canvas.drawCircle(
       PathPainterUtil.pointToPixelOffset(waypoint.anchor, scale, fieldImage),
       PathPainterUtil.uiPointSizeToPixels(25, scale, fieldImage),
-      paint);
+      paint,
+    );
     paint.style = PaintingStyle.stroke;
     paint.color = colorScheme.surfaceContainer;
     canvas.drawCircle(
       PathPainterUtil.pointToPixelOffset(waypoint.anchor, scale, fieldImage),
       PathPainterUtil.uiPointSizeToPixels(25, scale, fieldImage),
-      paint);
-  }
+      paint,
+    );
 
-    if (!simple && !hidePoints2) {
+    // Draw heading handle knob
+    if (!simple) {
       paint.style = PaintingStyle.fill;
       if (waypointIdx == selectedWaypoint) {
         paint.color = Colors.orange;
@@ -637,17 +246,19 @@ class PathPainter extends CustomPainter {
       }
 
       canvas.drawCircle(
-          PathPainterUtil.pointToPixelOffset(
-              waypoint.headingHandlePosition(), scale, fieldImage),
-          PathPainterUtil.uiPointSizeToPixels(20, scale, fieldImage),
-          paint);
+        PathPainterUtil.pointToPixelOffset(
+            waypoint.headingHandlePosition(), scale, fieldImage),
+        PathPainterUtil.uiPointSizeToPixels(20, scale, fieldImage),
+        paint,
+      );
       paint.style = PaintingStyle.stroke;
       paint.color = colorScheme.surfaceContainer;
       canvas.drawCircle(
-          PathPainterUtil.pointToPixelOffset(
-              waypoint.headingHandlePosition(), scale, fieldImage),
-          PathPainterUtil.uiPointSizeToPixels(20, scale, fieldImage),
-          paint);
+        PathPainterUtil.pointToPixelOffset(
+            waypoint.headingHandlePosition(), scale, fieldImage),
+        PathPainterUtil.uiPointSizeToPixels(20, scale, fieldImage),
+        paint,
+      );
     }
   }
 
@@ -655,7 +266,7 @@ class PathPainter extends CustomPainter {
     if (!showGrid) return;
 
     final paint = Paint()
-      ..color = colorScheme.secondary.withAlpha(50) // More transparent
+      ..color = colorScheme.secondary.withAlpha(50)
       ..strokeWidth = 1;
 
     double gridSpacing = PathPainterUtil.metersToPixels(0.5, scale, fieldImage);
