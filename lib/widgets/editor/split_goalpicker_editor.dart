@@ -605,7 +605,7 @@ class _GoalPickerPainter extends CustomPainter {
       // End robot outline for the goal's final waypoint
       final lastWp = goal.waypoints.last;
       PathPainterUtil.paintRobotOutline(
-        Pose2d(lastWp.anchor, lastWp.holonomicAngle),
+        Pose2d(lastWp.anchor, new Rotation2d()),
         fieldImage,
         robotConfig.bumperSize,
         robotConfig.bumperOffset,

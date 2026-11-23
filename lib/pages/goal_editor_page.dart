@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:pathplanner/path/goal.dart';
 import 'package:pathplanner/path/waypoint.dart';
@@ -41,32 +43,8 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
   int? _selectedWaypoint;
   int? _hoveredWaypoint;
   int? _draggingWaypoint;
+  bool _draggingHeading = false;
   List<Waypoint>? _dragStartSnapshot;
-
-  late TextEditingController _commandController;
-  late TextEditingController _successCondController;
-  late TextEditingController _failureCondController;
-  late TextEditingController _backupGoalController;
-
-  @override
-  void initState() {
-    super.initState();
-    _commandController = TextEditingController(text: widget.goal.command);
-    _successCondController =
-        TextEditingController(text: widget.goal.successCondition);
-    _failureCondController =
-        TextEditingController(text: widget.goal.failiureCondition);
-    _backupGoalController = TextEditingController(text: widget.goal.backUpGoal);
-  }
-
-  @override
-  void dispose() {
-    _commandController.dispose();
-    _successCondController.dispose();
-    _failureCondController.dispose();
-    _backupGoalController.dispose();
-    super.dispose();
-  }
 
   void _notifyChanged() {
     widget.onGoalChanged?.call();
@@ -117,6 +95,11 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
     final px = PathPainterUtil.uiPointSizeToPixels(20, scale, widget.fieldImage);
     return PathPainterUtil.pixelsToMeters(px, scale, widget.fieldImage);
   }
+
+  bool _isNearAnchor(Waypoint w, Translation2d pos, double radius) {
+    return (w.anchor - pos).norm <= radius;
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -177,9 +160,7 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
                                   i >= 0;
                                   i--) {
                                 final w = widget.goal.waypoints[i];
-                                if (w.isPointInAnchor(pos.x, pos.y, anchorR) ||
-                                    w.isPointInHeadingHandle(
-                                        pos.x, pos.y, headingR)) {
+                                if (_isNearAnchor(w, pos, anchorR)) {
                                   found = i;
                                   break;
                                 }
@@ -203,10 +184,7 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
                                     i >= 0;
                                     i--) {
                                   final w = widget.goal.waypoints[i];
-                                  if (w.isPointInAnchor(
-                                          pos.x, pos.y, anchorR) ||
-                                      w.isPointInHeadingHandle(
-                                          pos.x, pos.y, headingR)) {
+                                  if (_isNearAnchor(w, pos, anchorR)) {
                                     setState(() => _selectedWaypoint = i);
                                     return;
                                   }
@@ -227,8 +205,8 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
                                 for (int i = widget.goal.waypoints.length - 1;
                                     i >= 0;
                                     i--) {
-                                  if (widget.goal.waypoints[i]
-                                      .isPointInAnchor(pos.x, pos.y, anchorR)) {
+                                  if (_isNearAnchor(widget.goal.waypoints[i],
+                                      pos, anchorR)) {
                                     final before = _cloneWaypoints();
                                     widget.goal.waypoints.removeAt(i);
                                     if (_selectedWaypoint == i) {
@@ -250,10 +228,12 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
                                 for (int i = widget.goal.waypoints.length - 1;
                                     i >= 0;
                                     i--) {
-                                  if (widget.goal.waypoints[i].startDragging(
-                                      pos.x, pos.y, anchorR, headingR)) {
+                                  final w = widget.goal.waypoints[i];
+                                  if (w.isLocked) continue;
+                                  if (_isNearAnchor(w, pos, anchorR)) {
                                     _dragStartSnapshot = _cloneWaypoints();
                                     _draggingWaypoint = i;
+                                    _draggingHeading = false;
                                     setState(() => _selectedWaypoint = i);
                                     return;
                                   }
@@ -263,19 +243,26 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
                                 if (_draggingWaypoint == null) return;
                                 final pos = _offsetToField(
                                     details.localPosition, scale);
-                                widget.goal.waypoints[_draggingWaypoint!]
-                                    .dragUpdate(pos.x, pos.y);
+                                final w =
+                                    widget.goal.waypoints[_draggingWaypoint!];
+                                if (_draggingHeading) {
+                                  final angle = atan2(
+                                    pos.y - w.anchor.y,
+                                    pos.x - w.anchor.x,
+                                  );
+                                } else {
+                                  w.move(pos.x, pos.y);
+                                }
                                 _notifyChanged();
                               },
                               onPanEnd: (_) {
                                 if (_draggingWaypoint != null) {
-                                  widget.goal.waypoints[_draggingWaypoint!]
-                                      .stopDragging();
                                   if (_dragStartSnapshot != null) {
                                     _recordUndo(
                                         _dragStartSnapshot!, _cloneWaypoints());
                                   }
                                   _draggingWaypoint = null;
+                                  _draggingHeading = false;
                                   _dragStartSnapshot = null;
                                   _notifyChanged();
                                 }
@@ -336,15 +323,13 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: _commandController,
-                  decoration: const InputDecoration(
-                    labelText: 'Command',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
+                _buildStoreDropdown(
+                  label: 'Command',
+                  noneLabel: 'No Command',
+                  currentValue: widget.goal.command,
+                  options: CommandsStore.commands,
                   onChanged: (val) {
-                    widget.goal.command = val;
+                    widget.goal.command = val ?? '';
                     _notifyChanged();
                   },
                 ),
@@ -377,15 +362,14 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
                   },
                 ),
                 if (widget.goal.withSuccessCondition) ...[
-                  TextField(
-                    controller: _successCondController,
-                    decoration: const InputDecoration(
-                      labelText: 'Success Condition',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
+                  _buildStoreDropdown(
+                    label: 'Success Condition',
+                    noneLabel: 'No Trigger',
+                    currentValue: widget.goal.successCondition,
+                    options:
+                        TriggersStore.triggers.map((t) => t.name).toList(),
                     onChanged: (val) {
-                      widget.goal.successCondition = val;
+                      widget.goal.successCondition = val ?? '';
                       _notifyChanged();
                     },
                   ),
@@ -401,32 +385,32 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
                   },
                 ),
                 if (widget.goal.withFailiureCondition) ...[
-                  TextField(
-                    controller: _failureCondController,
-                    decoration: const InputDecoration(
-                      labelText: 'Failure Condition',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
+                  _buildStoreDropdown(
+                    label: 'Failure Condition',
+                    noneLabel: 'No Trigger',
+                    currentValue: widget.goal.failiureCondition,
+                    options:
+                        TriggersStore.triggers.map((t) => t.name).toList(),
                     onChanged: (val) {
-                      widget.goal.failiureCondition = val;
+                      widget.goal.failiureCondition = val ?? '';
                       _notifyChanged();
                     },
                   ),
                   const SizedBox(height: 8),
-                ],
-                TextField(
-                  controller: _backupGoalController,
-                  decoration: const InputDecoration(
-                    labelText: 'Backup Goal',
-                    border: OutlineInputBorder(),
-                    isDense: true,
+                  _buildStoreDropdown(
+                    label: 'Backup Goal',
+                    noneLabel: 'No Backup Goal',
+                    currentValue: widget.goal.backUpGoal,
+                    options: GoalsStore.goals
+                        .map((g) => g.name)
+                        .where((name) => name != widget.goal.name.trim())
+                        .toList(),
+                    onChanged: (val) {
+                      widget.goal.backUpGoal = val ?? '';
+                      _notifyChanged();
+                    },
                   ),
-                  onChanged: (val) {
-                    widget.goal.backUpGoal = val;
-                    _notifyChanged();
-                  },
-                ),
+                ],
                 const Divider(height: 24),
                 Text(
                   'Waypoints (${widget.goal.waypoints.length})',
@@ -479,13 +463,57 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
     );
   }
 
+  Widget _buildStoreDropdown({
+    required String label,
+    required String noneLabel,
+    required String currentValue,
+    required List<String> options,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final seen = <String>{};
+    final items = <DropdownMenuItem<String?>>[
+      DropdownMenuItem<String?>(value: null, child: Text(noneLabel)),
+    ];
+
+    for (final opt in options) {
+      if (opt.isNotEmpty && seen.add(opt)) {
+        items.add(DropdownMenuItem<String?>(value: opt, child: Text(opt)));
+      }
+    }
+
+    final selected = currentValue.isEmpty ? null : currentValue;
+    if (selected != null && !seen.contains(selected)) {
+      items.insert(
+        1,
+        DropdownMenuItem<String?>(
+          value: selected,
+          child: Text('Unknown ($selected)'),
+        ),
+      );
+    }
+
+    return DropdownButtonFormField<String?>(
+      value: selected,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        isDense: true,
+      ),
+      items: items,
+      onChanged: onChanged,
+    );
+  }
+
   Widget _buildSelectedWaypointCard(
     Waypoint w,
     int index,
     ColorScheme colorScheme,
   ) {
-    final controllers = ControllerSettingsStore.settings.map((e) => e.name).toList();
-    final headingStrats = HeadingStratsStore.headingStrats.map((e) => e.name).toList();
+    final controllers =
+        ControllerSettingsStore.settings.map((e) => e.name).toList();
+    final headingStrats =
+        HeadingStratsStore.headingStrats.map((e) => e.name).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -499,9 +527,12 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
             const Spacer(),
             IconButton(
               tooltip: w.isLocked ? 'Unlock Waypoint' : 'Lock Waypoint',
-              icon: Icon(w.isLocked ? Icons.lock_rounded : Icons.lock_open_rounded),
+              icon: Icon(
+                  w.isLocked ? Icons.lock_rounded : Icons.lock_open_rounded),
               onPressed: () {
+                final before = _cloneWaypoints();
                 w.isLocked = !w.isLocked;
+                _recordUndo(before, _cloneWaypoints());
                 _notifyChanged();
               },
             ),
@@ -522,10 +553,14 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
             for (final name in controllers)
               DropdownMenuItem<String?>(value: name, child: Text(name)),
           ],
-          onChanged: (val) {
-            w.controllerSettingName = val;
-            _notifyChanged();
-          },
+          onChanged: w.isLocked
+              ? null
+              : (val) {
+                  final before = _cloneWaypoints();
+                  w.controllerSettingName = val;
+                  _recordUndo(before, _cloneWaypoints());
+                  _notifyChanged();
+                },
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String?>(
@@ -542,10 +577,14 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
             for (final name in headingStrats)
               DropdownMenuItem<String?>(value: name, child: Text(name)),
           ],
-          onChanged: (val) {
-            w.headingStratName = val;
-            _notifyChanged();
-          },
+          onChanged: w.isLocked
+              ? null
+              : (val) {
+                  final before = _cloneWaypoints();
+                  w.headingStratName = val;
+                  _recordUndo(before, _cloneWaypoints());
+                  _notifyChanged();
+                },
         ),
       ],
     );
@@ -566,7 +605,7 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
         selected: isSelected,
         onTap: () => setState(() => _selectedWaypoint = index),
         title: Text(
-          '#${index + 1}  (${w.anchor.x.toStringAsFixed(2)}, ${w.anchor.y.toStringAsFixed(2)})  ${w.holonomicAngle.degrees.toStringAsFixed(0)}°',
+          '#${index + 1}  (${w.anchor.x.toStringAsFixed(2)}, ${w.anchor.y.toStringAsFixed(2)})',
         ),
         trailing: IconButton(
           icon: const Icon(Icons.delete_outline_rounded, size: 18),

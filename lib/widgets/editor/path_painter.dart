@@ -90,7 +90,7 @@ class PathPainter extends CustomPainter {
 
     // Paint start and end robot outlines
     PathPainterUtil.paintRobotOutline(
-      Pose2d(waypoints.first.anchor, waypoints.first.holonomicAngle),
+      Pose2d(waypoints.first.anchor, new Rotation2d()),
       fieldImage,
       robotConfig.bumperSize,
       robotConfig.bumperOffset,
@@ -103,7 +103,7 @@ class PathPainter extends CustomPainter {
 
     if (waypoints.length > 1) {
       PathPainterUtil.paintRobotOutline(
-        Pose2d(waypoints.last.anchor, waypoints.last.holonomicAngle),
+        Pose2d(waypoints.last.anchor, new Rotation2d()),
         fieldImage,
         robotConfig.bumperSize,
         robotConfig.bumperOffset,
@@ -122,7 +122,7 @@ class PathPainter extends CustomPainter {
         selectedWaypoint! < waypoints.length - 1) {
       final sel = waypoints[selectedWaypoint!];
       PathPainterUtil.paintRobotOutline(
-        Pose2d(sel.anchor, sel.holonomicAngle),
+        Pose2d(sel.anchor, new Rotation2d()),
         fieldImage,
         robotConfig.bumperSize,
         robotConfig.bumperOffset,
@@ -196,13 +196,6 @@ class PathPainter extends CustomPainter {
         );
       }
 
-      // Draw heading handle line
-      canvas.drawLine(
-        PathPainterUtil.pointToPixelOffset(waypoint.anchor, scale, fieldImage),
-        PathPainterUtil.pointToPixelOffset(
-            waypoint.headingHandlePosition(), scale, fieldImage),
-        paint,
-      );
     }
 
     if (waypointIdx == 0) {
@@ -245,20 +238,8 @@ class PathPainter extends CustomPainter {
         paint.color = colorScheme.secondary;
       }
 
-      canvas.drawCircle(
-        PathPainterUtil.pointToPixelOffset(
-            waypoint.headingHandlePosition(), scale, fieldImage),
-        PathPainterUtil.uiPointSizeToPixels(20, scale, fieldImage),
-        paint,
-      );
       paint.style = PaintingStyle.stroke;
       paint.color = colorScheme.surfaceContainer;
-      canvas.drawCircle(
-        PathPainterUtil.pointToPixelOffset(
-            waypoint.headingHandlePosition(), scale, fieldImage),
-        PathPainterUtil.uiPointSizeToPixels(20, scale, fieldImage),
-        paint,
-      );
     }
   }
 

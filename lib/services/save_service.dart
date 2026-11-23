@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:pathplanner/namedObjects/named_controllersettings.dart';
-import 'package:pathplanner/namedObjects/named_headingStrat.dart';
 import 'package:pathplanner/path/waypoint.dart';
 import 'package:pathplanner/services/log.dart';
 import 'package:pathplanner/services/stores_Service.dart';
@@ -93,7 +91,6 @@ class SaveService {
     for (final w in waypoints) {
       final x = _formatNum(w.anchor.x);
       final y = _formatNum(w.anchor.y);
-      final angleDeg = _formatNum(w.holonomicAngle.degrees);
       final tolerance = _formatNum(w.tolerance);
       final rotationTolerance = _formatNum(w.toleranceDeg);
 
@@ -118,7 +115,7 @@ class SaveService {
       }
 
       sb.writeln(
-        '        add(new Waypoint(new Pose2d($x, $y, new Rotation2d(Math.toRadians($angleDeg))), $tolerance, $rotationTolerance, $controllerRef, $headingRef));',
+        '        add(new Waypoint(new Pose2d($x, $y, implemetSTRAT), $tolerance, $rotationTolerance, $controllerRef, $headingRef));',
       );
     }
 
@@ -203,23 +200,16 @@ class SaveService {
           final tol = double.parse(m.group(4)!);
           final tolDeg = double.parse(m.group(5)!);
 
-          final controllerName =
-              resolveName(m.group(6), knownControllers);
-          final headingName =
-              resolveName(m.group(7), knownHeadings);
+          final controllerName = resolveName(m.group(6), knownControllers);
+          final headingName = resolveName(m.group(7), knownHeadings);
 
           waypoints.add(
             Waypoint(
               anchor: Translation2d(x, y),
-              holonomicAngle: Rotation2d.fromDegrees(angDeg),
               tolerance: tol,
               toleranceDeg: tolDeg,
-              controllerSettings: controllerName != null
-                  ? NamedControllerSettings(name: controllerName)
-                  : null,
-              headingStrat: headingName != null
-                  ? NamedHeadingStrat(name: headingName)
-                  : null,
+              controllerSettingName: controllerName,
+              headingStratName: headingName,
             ),
           );
         } catch (e) {
