@@ -1,20 +1,10 @@
 import 'package:flutter/foundation.dart';
+import 'package:pathplanner/namedObjects/named_json_data_serializer.dart';
 import 'package:pathplanner/namedObjects/named_headingStrat.dart';
 
-abstract class HeadingStrat {
-  Map<String, dynamic> dataToJson();
-
-  HeadingStrat clone();
-
-  @nonVirtual
-  Map<String, dynamic> toJson() {
-    return {
-      'data': dataToJson(),
-    };
-  }
-
+abstract class HeadingStrat with NamedJSONDataSerializable<HeadingStrat> {
   static HeadingStrat? fromJson(Map<String, dynamic> json) {
-    Map<String, dynamic> data = json['data'] ?? {};
+    final data = (json['data'] as Map<String, dynamic>?) ?? const {};
     return NamedHeadingStrat.fromDataJson(data);
   }
 }

@@ -1,20 +1,10 @@
 import 'package:flutter/foundation.dart';
+import 'package:pathplanner/namedObjects/named_json_data_serializer.dart';
 import 'package:pathplanner/namedObjects/named_trigger.dart';
 
-abstract class Trigger {
-  Map<String, dynamic> dataToJson();
-
-  Trigger clone();
-
-  @nonVirtual
-  Map<String, dynamic> toJson() {
-    return {
-      'data': dataToJson(),
-    };
-  }
-
+abstract class Trigger with NamedJSONDataSerializable<Trigger> {
   static Trigger? fromJson(Map<String, dynamic> json) {
-    Map<String, dynamic> data = json['data'] ?? {};
+    final data = (json['data'] as Map<String, dynamic>?) ?? const {};
     return NamedTrigger.fromDataJson(data);
   }
 }
