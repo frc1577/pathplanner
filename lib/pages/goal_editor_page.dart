@@ -68,6 +68,33 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
   List<Waypoint> _cloneWaypoints() =>
       [for (final w in widget.goal.waypoints) w.clone()];
 
+  void _moveWaypoint(int oldIndex, int newIndex) {
+    if (oldIndex < 0 ||
+        oldIndex >= widget.goal.waypoints.length ||
+        newIndex < 0 ||
+        newIndex >= widget.goal.waypoints.length ||
+        oldIndex == newIndex) {
+      return;
+    }
+
+    final before = _cloneWaypoints();
+    final item = widget.goal.waypoints.removeAt(oldIndex);
+    widget.goal.waypoints.insert(newIndex, item);
+
+    if (_selectedWaypoint == oldIndex) {
+      _selectedWaypoint = newIndex;
+    } else if (_selectedWaypoint != null) {
+      if (oldIndex < _selectedWaypoint! && newIndex >= _selectedWaypoint!) {
+        _selectedWaypoint = _selectedWaypoint! - 1;
+      } else if (oldIndex > _selectedWaypoint! && newIndex <= _selectedWaypoint!) {
+        _selectedWaypoint = _selectedWaypoint! + 1;
+      }
+    }
+
+    _recordUndo(before, _cloneWaypoints());
+    _notifyChanged();
+  }
+
   void _recordUndo(List<Waypoint> before, List<Waypoint> after) {
     widget.undoStack.add(
       Change<List<Waypoint>>(
@@ -660,6 +687,8 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
   Widget _buildWaypointListTile(int index, ColorScheme colorScheme) {
     final w = widget.goal.waypoints[index];
     final isSelected = _selectedWaypoint == index;
+    final canMoveUp = index > 0;
+    final canMoveDown = index < widget.goal.waypoints.length - 1;
 
     return Card(
       elevation: 0,
@@ -672,22 +701,42 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
         selected: isSelected,
         onTap: () => setState(() => _selectedWaypoint = index),
         title: Text(
-          '#${index + 1}  (${w.anchor.x.toStringAsFixed(2)},${w.anchor.y.toStringAsFixed(2)})',
+          '#${index + 1}  (${w.anchor.x.toStringAsFixed(2)}, ${w.anchor.y.toStringAsFixed(2)})',
         ),
-        trailing: IconButton(
-          icon: const Icon(Icons.delete_outline_rounded, size: 18),
-          onPressed: () {
-            final before = _cloneWaypoints();
-            widget.goal.waypoints.removeAt(index);
-            if (_selectedWaypoint == index) {
-              _selectedWaypoint = null;
-            } else if (_selectedWaypoint != null &&
-                _selectedWaypoint! > index) {
-              _selectedWaypoint = _selectedWaypoint! - 1;
-            }
-            _recordUndo(before, _cloneWaypoints());
-            _notifyChanged();
-          },
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Move Up',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.arrow_upward_rounded, size: 18),
+              onPressed: canMoveUp ? () => _moveWaypoint(index, index - 1) : null,
+            ),
+            IconButton(
+              tooltip: 'Move Down',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+              onPressed:
+                  canMoveDown ? () => _moveWaypoint(index, index + 1) : null,
+            ),
+            IconButton(
+              tooltip: 'Delete Waypoint',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.delete_outline_rounded, size: 18),
+              onPressed: () {
+                final before = _cloneWaypoints();
+                widget.goal.waypoints.removeAt(index);
+                if (_selectedWaypoint == index) {
+                  _selectedWaypoint = null;
+                } else if (_selectedWaypoint != null &&
+                    _selectedWaypoint! > index) {
+                  _selectedWaypoint = _selectedWaypoint! - 1;
+                }
+                _recordUndo(before, _cloneWaypoints());
+                _notifyChanged();
+              },
+            ),
+          ],
         ),
       ),
     );
