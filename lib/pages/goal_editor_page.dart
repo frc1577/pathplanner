@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:pathplanner/path/goal.dart';
 import 'package:pathplanner/path/waypoint.dart';
+import 'package:pathplanner/services/goal_picker_sync_service.dart';
 import 'package:pathplanner/services/stores_Service.dart';
 import 'package:pathplanner/util/path_painter_util.dart';
 import 'package:pathplanner/util/wpimath/geometry.dart';
@@ -45,8 +46,21 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
   int? _draggingWaypoint;
   bool _draggingHeading = false;
   List<Waypoint>? _dragStartSnapshot;
+  late String _lastKnownName;
 
-  void _notifyChanged() {
+  @override
+  void initState() {
+    super.initState();
+    _lastKnownName = widget.goal.name;
+  }
+
+  void _notifyChanged({String? previousName}) {
+    final prev = previousName ?? _lastKnownName;
+    GoalPickerSyncService.syncGoalAcrossPickersAndSave(
+      updatedGoal: widget.goal,
+      previousName: prev,
+    );
+    _lastKnownName = widget.goal.name;
     widget.onGoalChanged?.call();
     setState(() {});
   }
@@ -99,7 +113,6 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
   bool _isNearAnchor(Waypoint w, Translation2d pos, double radius) {
     return (w.anchor - pos).norm <= radius;
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -436,8 +449,10 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
             color: colorScheme.onSurface,
           ),
           onRename: (value) {
+            final previousName = _lastKnownName;
+            widget.goal.name = value;
             widget.onRenamed.call(value);
-            setState(() {});
+            _notifyChanged(previousName: previousName);
           },
         ),
         leading: BackButton(
@@ -657,7 +672,7 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
         selected: isSelected,
         onTap: () => setState(() => _selectedWaypoint = index),
         title: Text(
-          '#${index + 1}  (${w.anchor.x.toStringAsFixed(2)}, ${w.anchor.y.toStringAsFixed(2)})',
+          '#${index + 1}  (${w.anchor.x.toStringAsFixed(2)},${w.anchor.y.toStringAsFixed(2)})',
         ),
         trailing: IconButton(
           icon: const Icon(Icons.delete_outline_rounded, size: 18),

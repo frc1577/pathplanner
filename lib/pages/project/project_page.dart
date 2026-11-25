@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:multi_split_view/multi_split_view.dart';
 import 'package:path/path.dart';
 import 'package:pathplanner/pages/goal_editor_page.dart';
+import 'package:pathplanner/services/goal_picker_sync_service.dart';
 import 'package:pathplanner/widgets/editor/goalpicker_editor_page.dart';
 import 'package:pathplanner/pages/project/project_item_card.dart';
 import 'package:pathplanner/path/goal.dart';
@@ -284,6 +285,7 @@ class _ProjectPageState extends State<ProjectPage> {
       }
     }
 
+    GoalPickerSyncService.clearRegisteredPickers();
     final List<_GoalPickerEntry> loadedGoalPickers = [];
     await for (final entity in _goalPickersDirectory.list()) {
       if (entity is File && entity.path.endsWith('.goalpicker')) {
@@ -298,6 +300,11 @@ class _ProjectPageState extends State<ProjectPage> {
           if (!_goalPickerFolders.contains(entry.folder)) {
             entry.folder = null;
           }
+          GoalPickerSyncService.registerPicker(
+            entry.name,
+            entry.picker,
+            file: entity,
+          );
           loadedGoalPickers.add(entry);
         } catch (_) {
           // Skip malformed goalPicker files

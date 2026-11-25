@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pathplanner/pages/goal_editor_page.dart';
 import 'package:pathplanner/path/goal.dart';
 import 'package:pathplanner/path/goal_picker.dart';
+import 'package:pathplanner/services/goal_picker_sync_service.dart';
 import 'package:pathplanner/widgets/conditional_widget.dart';
 import 'package:pathplanner/widgets/custom_appbar.dart';
 import 'package:pathplanner/widgets/editor/split_goalpicker_editor.dart';
@@ -48,6 +49,13 @@ class _GoalPickerEditorPageState extends State<GoalPickerEditorPage> {
   void initState() {
     super.initState();
     _currentName = widget.name;
+    GoalPickerSyncService.registerPicker(_currentName, widget.goalPicker);
+  }
+
+  @override
+  void dispose() {
+    GoalPickerSyncService.unregisterPicker(_currentName);
+    super.dispose();
   }
 
   @override
@@ -63,6 +71,7 @@ class _GoalPickerEditorPageState extends State<GoalPickerEditorPage> {
       onGoalPickerChanged: widget.onGoalPickerChanged,
       onPromoteGoalToProject: widget.onPromoteGoalToProject,
       onEditGoalPressed: (goal) async {
+        final beforeName = goal.name;
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -76,6 +85,11 @@ class _GoalPickerEditorPageState extends State<GoalPickerEditorPage> {
               onGoalChanged: widget.onGoalPickerChanged,
             ),
           ),
+        );
+        GoalPickerSyncService.syncGoalInGoalPicker(
+          widget.goalPicker,
+          goal,
+          previousName: beforeName,
         );
         widget.onGoalPickerChanged?.call();
         setState(() {});
@@ -92,7 +106,9 @@ class _GoalPickerEditorPageState extends State<GoalPickerEditorPage> {
             color: colorScheme.onSurface,
           ),
           onRename: (value) {
+            GoalPickerSyncService.unregisterPicker(_currentName);
             _currentName = value;
+            GoalPickerSyncService.registerPicker(_currentName, widget.goalPicker);
             widget.onRenamed.call(value);
             setState(() {});
           },
