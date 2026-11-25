@@ -398,55 +398,102 @@ class _ProjectPageState extends State<ProjectPage> {
             padding: const EdgeInsets.all(16.0),
             child: FloatingActionButton(
               clipBehavior: Clip.antiAlias,
-              tooltip: 'Manage Events & Linked Waypoints',
+              tooltip: 'Manage Strats, ControllerSettings, Commands, Triggers, and Linked Waypoints',
               backgroundColor: colorScheme.surface,
               foregroundColor: colorScheme.onSurface,
               onPressed: () => showDialog(
                 context: context,
-                builder: (BuildContext context) => ManagementDialog(
-                  onEventRenamed: (String oldName, String newName) {
-                    setState(() {});
-                  },
-                  onEventDeleted: (String name) {
-                    setState(() {});
-                  },
-                  onLinkedRenamed: (String oldName, String newName) {
-                    setState(() {
-                      Pose2d? pose = Waypoint.linked.remove(oldName);
-                      if (pose != null) {
-                        Waypoint.linked[newName] = pose;
-                        _syncLinkedWaypoints();
+              builder: (BuildContext context) => ManagementDialog(
+                projectDir: widget.pathplannerDirectory.path,
+                onLinkedRenamed: (String oldName, String newName) {
+                  setState(() {
+                    Pose2d? pose = Waypoint.linked.remove(oldName);
+                    if (pose != null) {
+                      Waypoint.linked[newName] = pose;
+                      _syncLinkedWaypoints();
+                    }
+                  });
+                },
+                onLinkedDeleted: (String name) {
+                  setState(() {
+                    Waypoint.linked.remove(name);
+                    for (final entry in _goals) {
+                      bool changed = false;
+                      for (final w in entry.goal.waypoints) {
+                        if (w.linkedName == name) {
+                          w.linkedName = null;
+                          changed = true;
+                        }
                       }
-                    });
-                  },
-                  onLinkedDeleted: (String name) {
-                    setState(() {
-                      Waypoint.linked.remove(name);
-                      for (final entry in _goals) {
-                        bool changed = false;
-                        for (final w in entry.goal.waypoints) {
+                      if (changed) _saveGoal(entry);
+                    }
+                    for (final gpEntry in _goalPickers) {
+                      bool changed = false;
+                      for (final g in gpEntry.picker.goals) {
+                        for (final w in g.waypoints) {
                           if (w.linkedName == name) {
                             w.linkedName = null;
                             changed = true;
                           }
                         }
-                        if (changed) _saveGoal(entry);
                       }
-                      for (final gpEntry in _goalPickers) {
-                        bool changed = false;
-                        for (final g in gpEntry.picker.goals) {
-                          for (final w in g.waypoints) {
-                            if (w.linkedName == name) {
-                              w.linkedName = null;
-                              changed = true;
-                            }
+                      if (changed) _saveGoalPicker(gpEntry);
+                    }
+                  });
+                },
+                onControllerSettingDeleted: (String name) {
+                  setState(() {
+                    for (final entry in _goals) {
+                      bool changed = false;
+                      for (final w in entry.goal.waypoints) {
+                        if (w.controllerSettingName == name) {
+                          w.controllerSettingName = null;
+                          changed = true;
+                        }
+                      }
+                      if (changed) _saveGoal(entry);
+                    }
+                    for (final gpEntry in _goalPickers) {
+                      bool changed = false;
+                      for (final g in gpEntry.picker.goals) {
+                        for (final w in g.waypoints) {
+                          if (w.controllerSettingName == name) {
+                            w.controllerSettingName = null;
+                            changed = true;
                           }
                         }
-                        if (changed) _saveGoalPicker(gpEntry);
                       }
-                    });
-                  },
-                ),
+                      if (changed) _saveGoalPicker(gpEntry);
+                    }
+                  });
+                },
+                onHeadingStratDeleted: (String name) {
+                  setState(() {
+                    for (final entry in _goals) {
+                      bool changed = false;
+                      for (final w in entry.goal.waypoints) {
+                        if (w.headingStratName == name) {
+                          w.headingStratName = null;
+                          changed = true;
+                        }
+                      }
+                      if (changed) _saveGoal(entry);
+                    }
+                    for (final gpEntry in _goalPickers) {
+                      bool changed = false;
+                      for (final g in gpEntry.picker.goals) {
+                        for (final w in g.waypoints) {
+                          if (w.headingStratName == name) {
+                            w.headingStratName = null;
+                            changed = true;
+                          }
+                        }
+                      }
+                      if (changed) _saveGoalPicker(gpEntry);
+                    }
+                  });
+                },
+              ),
               ),
               child: Stack(
                 children: [
