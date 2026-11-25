@@ -748,6 +748,35 @@ void _openGoal(_GoalEntry entry) async {
     });
   }
 
+  /// Adds a newly created Goal from a GoalPicker into the project's Goals tab.
+  /// Updates `goal.name` if a collision requires deduplicating the name.
+  void _promoteGoalToProject(Goal goal) {
+    final existingNames = _goals.map((e) => e.name).toSet();
+    String targetName =
+        goal.name.trim().isEmpty ? 'New Goal' : goal.name.trim();
+
+    if (existingNames.contains(targetName)) {
+      int suffix = 2;
+      while (existingNames.contains('$targetName ($suffix)')) {
+        suffix++;
+      }
+      targetName = '$targetName ($suffix)';
+    }
+
+    goal.name = targetName;
+
+    final newEntry = _GoalEntry(
+      goal: goal.clone(),
+      folder: _goalFolder,
+    );
+
+    setState(() {
+      _goals.add(newEntry);
+      _saveGoal(newEntry);
+      _sortItems();
+    });
+  }
+
   // ===========================================================================
   // RIGHT PANE: GOALPICKER TAB
   // ===========================================================================
@@ -1015,8 +1044,18 @@ void _openGoal(_GoalEntry entry) async {
           undoStack: widget.undoStack,
           shortcuts: widget.shortcuts,
           onRenamed: (value) => _renameGoalPicker(entry, value, context),
+          onPromoteGoalToProject: _promoteGoalToProject,
           onGoalPickerChanged: () {
             _saveGoalPicker(entry);
+
+            // Keep matching standalone project goals in sync if edited in the picker
+            for (final pickerGoal in entry.picker.goals) {
+              final idx = _goals.indexWhere((e) => e.name == pickerGoal.name);
+              if (idx != -1) {
+                _goals[idx].goal = pickerGoal.clone();
+                _saveGoal(_goals[idx]);
+              }
+            }
           },
         ),
       ),

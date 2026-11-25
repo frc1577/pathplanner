@@ -91,7 +91,7 @@ class SaveService {
     for (final w in waypoints) {
       final x = _formatNum(w.anchor.x);
       final y = _formatNum(w.anchor.y);
-      final tolerance = _formatNum(w.tolerance);
+      final tolerance = _formatNum(w.toleranceM);
       final rotationTolerance = _formatNum(w.toleranceDeg);
 
       String controllerRef = 'null';
@@ -206,7 +206,7 @@ class SaveService {
           waypoints.add(
             Waypoint(
               anchor: Translation2d(x, y),
-              tolerance: tol,
+              toleranceM: tol,
               toleranceDeg: tolDeg,
               controllerSettingName: controllerName,
               headingStratName: headingName,

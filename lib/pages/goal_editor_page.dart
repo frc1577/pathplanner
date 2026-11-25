@@ -539,6 +539,58 @@ class _GoalEditorPageState extends State<GoalEditorPage> {
           ],
         ),
         const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                key: ValueKey('wp_${index}_tolM_${w.toleranceM}'),
+                initialValue: w.toleranceM.toString(),
+                enabled: !w.isLocked,
+                keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true, signed: false),
+                decoration: const InputDecoration(
+                  labelText: 'Tolerance (m)',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                onFieldSubmitted: (val) {
+                  final parsed = double.tryParse(val);
+                  if (parsed != null && parsed >= 0) {
+                    final before = _cloneWaypoints();
+                    w.toleranceM = parsed;
+                    _recordUndo(before, _cloneWaypoints());
+                    _notifyChanged();
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextFormField(
+                key: ValueKey('wp_${index}_tolDeg_${w.toleranceDeg}'),
+                initialValue: w.toleranceDeg.toString(),
+                enabled: !w.isLocked,
+                keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true, signed: false),
+                decoration: const InputDecoration(
+                  labelText: 'Tolerance (°)',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                onFieldSubmitted: (val) {
+                  final parsed = double.tryParse(val);
+                  if (parsed != null && parsed >= 0) {
+                    final before = _cloneWaypoints();
+                    w.toleranceDeg = parsed;
+                    _recordUndo(before, _cloneWaypoints());
+                    _notifyChanged();
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
         DropdownButtonFormField<String?>(
           value: controllers.contains(w.controllerSettingName)
               ? w.controllerSettingName

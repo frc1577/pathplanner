@@ -761,14 +761,14 @@ class _GoalsTreeState extends State<GoalsTree> {
             children: [
               Expanded(
                 child: NumberTextField(
-                  initialValue: waypoint.tolerance,
+                  initialValue: waypoint.toleranceM,
                   label: 'Arrival Tolerance (M)',
                   enabled: !waypoint.isLocked,
                   onSubmitted: (value) => value == null
                       ? null
                       : _updateWaypoint(
                           waypoint,
-                          () => waypoint.tolerance = value,
+                          () => waypoint.toleranceM = value,
                         ),
                 ),
               ),

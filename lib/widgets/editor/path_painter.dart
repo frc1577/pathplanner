@@ -182,7 +182,7 @@ class PathPainter extends CustomPainter {
     }
 
     if (!simple) {
-      if (waypoint.tolerance > 0) {
+      if (waypoint.toleranceM > 0) {
         final tolerancePaint = Paint()
           ..style = PaintingStyle.stroke
           ..color = colorScheme.secondary.withAlpha(80)
@@ -191,7 +191,7 @@ class PathPainter extends CustomPainter {
           PathPainterUtil.pointToPixelOffset(
               waypoint.anchor, scale, fieldImage),
           PathPainterUtil.metersToPixels(
-              waypoint.tolerance.toDouble(), scale, fieldImage),
+              waypoint.toleranceM.toDouble(), scale, fieldImage),
           tolerancePaint,
         );
       }

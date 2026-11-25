@@ -520,7 +520,7 @@ class _SplitGoalPickerEditorState extends State<SplitGoalPickerEditor> {
                 },
               ),
             IconButton(
-              tooltip: 'Add new goal (also saves to project Goals)',
+              tooltip: 'Add new goal',
               icon: const Icon(Icons.add_rounded),
               onPressed: () {
                 final before = _cloneGoals();
@@ -530,8 +530,11 @@ class _SplitGoalPickerEditorState extends State<SplitGoalPickerEditor> {
                     Waypoint(anchor: const Translation2d(4.0, 6.0)),
                   ],
                 );
-                widget.goalPicker.goals.add(newGoal);
                 widget.onPromoteGoalToProject?.call(newGoal);
+                widget.goalPicker.goals.add(newGoal);
+                if (!widget.allGoals.any((g) => g.name == newGoal.name)) {
+                  widget.allGoals.add(newGoal.clone());
+                }
                 _recordGoalsChange(before, _cloneGoals());
                 widget.onGoalPickerChanged?.call();
                 setState(() {});
@@ -595,18 +598,6 @@ class _SplitGoalPickerEditorState extends State<SplitGoalPickerEditor> {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (widget.onPromoteGoalToProject != null)
-                                IconButton(
-                                  tooltip: 'Save to Project Goals Tab',
-                                  icon: const Icon(
-                                    Icons.drive_file_move_rounded,
-                                    size: 18,
-                                  ),
-                                  onPressed: () {
-                                    widget.onPromoteGoalToProject!(goal);
-                                    setState(() {});
-                                  },
-                                ),
                               if (widget.onEditGoalPressed != null)
                                 IconButton(
                                   tooltip: 'Edit Goal Waypoints',
@@ -623,8 +614,13 @@ class _SplitGoalPickerEditorState extends State<SplitGoalPickerEditor> {
                                   if (copy.name.isNotEmpty) {
                                     copy.name = 'Copy of ${copy.name}';
                                   }
+                                  widget.onPromoteGoalToProject?.call(copy);
                                   widget.goalPicker.goals
                                       .insert(index + 1, copy);
+                                  if (!widget.allGoals
+                                      .any((g) => g.name == copy.name)) {
+                                    widget.allGoals.add(copy.clone());
+                                  }
                                   _recordGoalsChange(before, _cloneGoals());
                                   widget.onGoalPickerChanged?.call();
                                   setState(() {});

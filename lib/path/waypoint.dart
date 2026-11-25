@@ -4,7 +4,8 @@ import 'package:pathplanner/util/wpimath/geometry.dart';
 
 class Waypoint {
   Translation2d anchor;
-  num tolerance;
+  Rotation2d holonomicAngle;
+  num toleranceM;
   num toleranceDeg;
   String? headingStratName;
   String? controllerSettingName;
@@ -15,7 +16,8 @@ class Waypoint {
 
   Waypoint({
     required this.anchor,
-    this.tolerance = 0.25,
+    this.holonomicAngle = const Rotation2d(),
+    this.toleranceM = 0.25,
     this.toleranceDeg = 5.0,
     this.headingStratName,
     this.controllerSettingName,
@@ -24,12 +26,21 @@ class Waypoint {
   });
 
   factory Waypoint.fromJson(Map<String, dynamic> json) {
+    final rawHeading = (json['headingStratName'] as String?)?.trim();
+    final rawController = (json['controllerSettingName'] as String?)?.trim();
+
     return Waypoint(
       anchor: Translation2d.fromJson(json['anchor'] as Map<String, dynamic>),
-      tolerance: (json['tolerance'] as num?) ?? 0.25,
+      holonomicAngle: json['holonomicAngle'] != null
+          ? Rotation2d.fromDegrees((json['holonomicAngle'] as num))
+          : const Rotation2d(),
+      toleranceM: (json['toleranceM'] as num?) ?? 0.25,
       toleranceDeg: (json['toleranceDeg'] as num?) ?? 5.0,
-      headingStratName: json['headingStratName'] as String?,
-      controllerSettingName: json['controllerSettingName'] as String?,
+      headingStratName:
+          (rawHeading == null || rawHeading.isEmpty) ? null : rawHeading,
+      controllerSettingName: (rawController == null || rawController.isEmpty)
+          ? null
+          : rawController,
       isLocked: (json['isLocked'] as bool?) ?? false,
       linkedName: json['linkedName'] as String?,
     );
@@ -38,7 +49,8 @@ class Waypoint {
   Map<String, dynamic> toJson() {
     return {
       'anchor': anchor.toJson(),
-      'tolerance': tolerance,
+      'holonomicAngle': holonomicAngle.degrees,
+      'toleranceM': toleranceM,
       'toleranceDeg': toleranceDeg,
       'headingStratName': headingStratName,
       'controllerSettingName': controllerSettingName,
@@ -50,7 +62,8 @@ class Waypoint {
   Waypoint clone() {
     return Waypoint(
       anchor: anchor,
-      tolerance: tolerance,
+      holonomicAngle: holonomicAngle,
+      toleranceM: toleranceM,
       toleranceDeg: toleranceDeg,
       headingStratName: headingStratName,
       controllerSettingName: controllerSettingName,
@@ -63,6 +76,13 @@ class Waypoint {
     anchor = Translation2d(x, y);
   }
 
+  Translation2d headingHandlePosition([num handleDistance = 0.7]) {
+    return anchor +
+        Translation2d(
+          handleDistance * cos(holonomicAngle.radians),
+          handleDistance * sin(holonomicAngle.radians),
+        );
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -70,7 +90,8 @@ class Waypoint {
       other is Waypoint &&
           runtimeType == other.runtimeType &&
           anchor == other.anchor &&
-          tolerance == other.tolerance &&
+          holonomicAngle == other.holonomicAngle &&
+          toleranceM == other.toleranceM &&
           toleranceDeg == other.toleranceDeg &&
           headingStratName == other.headingStratName &&
           controllerSettingName == other.controllerSettingName &&
@@ -80,7 +101,8 @@ class Waypoint {
   @override
   int get hashCode => Object.hash(
         anchor,
-        tolerance,
+        holonomicAngle,
+        toleranceM,
         toleranceDeg,
         headingStratName,
         controllerSettingName,
